@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Reyhani Yapı — Cam Kesim &amp; Montaj</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head><body>
+<div id="splash-screen"><div class="splash-content"><img src="logo.png" alt="Reyhani Yapı" class="splash-logo"><div class="loader"></div><p>Yükleniyor...</p></div></div>
+<div class="app">
+<header><div class="brand"><h1>Reyhani Yapı</h1><span>Cam kesim &amp; montaj paneli</span></div>
+<div class="auth-status"><span class="admin-badge role-guest" id="sync">Bağlanıyor…</span><span class="admin-badge role-guest" id="role">Ziyaretçi Modu</span>
+<button class="btn btn-primary btn-sm" id="auth-btn" onclick="toggleAuth()">Giriş Yap</button></div></header>
+<div class="nav-tabs">
+<button class="tab-btn active" data-t="siparis" data-r="staff">📝 Siparişler</button>
+<button class="tab-btn" data-t="cam" data-r="staff">🪟 Cam Kesim</button>
+<button class="tab-btn" data-t="cita" data-r="staff">📏 Çıta Kesim</button>
+<button class="tab-btn" data-t="montaj" data-r="staff">🔧 Montaj</button>
+<button class="tab-btn" data-t="ayar" data-r="admin">⚙️ Ayarlar</button></div>
+<div id="gate" class="gate"><h2>🔒 Giriş gerekli</h2><p>Siparişleri görmek için sağ üstten <b>Giriş Yap</b> deyin.</p></div>
+<div id="tab-siparis" class="tab-content active"><div class="box">
+<h3>Yeni sipariş</h3>
+<div class="fr">
+<label>Müşteri<input id="f-m" placeholder="Ad Soyad"></label>
+<label>Apartman / Adres<input id="f-a" placeholder="Güneş Apt."></label></div>
+<div class="fr">
+<label>En (mm)<input id="f-w" type="number" inputmode="numeric"></label>
+<label>Boy (mm)<input id="f-h" type="number" inputmode="numeric"></label>
+<label>Adet<input id="f-q" type="number" inputmode="numeric" value="1"></label></div>
+<div class="fr">
+<label>Cam (mm)<select id="f-t"><option>4</option><option>5</option><option>6</option></select></label>
+<label>Çıta (mm)<select id="f-c"><option>8</option><option>10</option><option>12</option><option selected>14</option><option>16</option><option>18</option><option>20</option></select></label></div>
+<button class="btn btn-primary" id="add">➕ Siparişi ekle</button></div>
+<div class="box"><div class="fr"><h3 style="margin:0">Sipariş listesi</h3>
+<select id="flt"><option value="bekleyen">Bekleyenler</option><option value="hepsi">Hepsi</option></select></div>
+<div class="tb"><table id="olist"></table></div></div></div>
+
+<div id="tab-cam" class="tab-content"><div class="box fr"><button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
+<button class="btn btn-success" id="dc">✅ Bu planı kesildi işaretle</button>
+<button class="btn" id="xc">📥 Excel</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cam"></div></div>
+
+<div id="tab-cita" class="tab-content"><div class="box fr"><button class="btn btn-primary" id="rt">🔄 Planı yenile</button>
+<button class="btn btn-success" id="dt">✅ Bu planı kesildi işaretle</button>
+<button class="btn" id="xt">📥 Excel</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cita"></div></div>
+
+<div id="tab-montaj" class="tab-content"><div class="box"><h3>Yeni montaj</h3>
+<label>Sipariş<select id="m-sip"></select></label>
+<div class="fr"><label>Müşteri<input id="m-m"></label><label>Adres / Apartman<input id="m-a"></label></div>
+<div class="fr"><label>Montaj tarihi<input id="m-d" type="date"></label><label>Ekip / Usta<input id="m-e" placeholder="Ahmet usta"></label></div>
+<label>Not<input id="m-n" placeholder="3. kat, asansör yok..."></label><br>
+<button class="btn btn-primary" id="madd">➕ Montaj ekle</button></div>
+<div class="box"><div class="fr"><h3 style="margin:0">Montaj listesi</h3><select id="mflt"><option value="aktif">Bekleyenler</option><option value="hepsi">Hepsi</option></select></div>
+<div class="tb"><table id="mlist"></table></div></div></div>
+<div id="tab-ayar" class="tab-content" data-r="admin"><div class="box"><h3>Kesim ayarları</h3>
+<label>Cam levha ölçüleri (en x boy, virgülle ayırın)<input id="s-sheets"></label>
+<div class="fr"><label>Kesim payı (mm)<input id="s-kerf" type="number"></label>
+<label>Çıta boyu (mm)<input id="s-bl" type="number"></label>
+<label>Çıta ölçü düşümü (mm)<input id="s-ded" type="number"></label></div>
+<p class="mu">Çıta çerçevesi = 2×(En−düşüm) + 2×(Boy−düşüm). Sistem, listedeki levha ölçülerinden en az fire bırakanı otomatik seçer.</p>
+<button class="btn btn-primary" id="ssave">💾 Kaydet</button></div></div>
+</div><div class="toast" id="toast"></div>
+<script>
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DEF={sheets:'3210x2250, 2250x1605',kerf:3,bl:6000,ded:12};
+let orders={},settings={...DEF},db=null,gPlan=[],tPlan=[];
+const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)};
+
+/* ---------- Giriş (Reyhani sitesiyle aynı şifreler) ---------- */
+const ADMIN_HASH="50e65b1455800c98b480cec56db88524fabd630ddd992df1a58faf5a6edd2430",STAFF_HASH="2b084c9efd9150fb848e4efb0b5f03f455470f68b153814944e14a6204ec5b9a",DEVICE_AUTH_HASH="12a7d32afcd5140951fe6ea7b2c8ed7a9c2b196333190f28f899aaf85699c7e6",DEVKEY='reyhani_device_authorized_v1';
+let role='guest',montaj={};
+async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
+const devOK=()=>{try{return localStorage.getItem(DEVKEY)==='true'}catch(e){return false}};
+async function checkDeviceLink(){
+  const p=new URLSearchParams(location.search),c=p.get('authorize_device');if(!c)return;
+  p.delete('authorize_device');history.replaceState({},document.title,location.pathname+(p.toString()?'?'+p:'')+location.hash);
+  try{if(await sha(c)===DEVICE_AUTH_HASH){localStorage.setItem(DEVKEY,'true');alert('✅ Bu cihaz yetkilendirildi. Şimdi giriş yapabilirsiniz.')}else alert('⚠️ Cihaz yetkilendirme kodu geçersiz.')}catch(e){alert('Yetkilendirme çalışmadı. Sitenin https:// ile açıldığından emin olun.')}
+}
+async function toggleAuth(){
+  if(role==='guest'){
+    if(!devOK())return alert('Bu cihaz yetkili değil. Yetkilendirme bağlantısını bu cihazda açın.');
+    const p=prompt('Giriş Şifresini Giriniz:');if(p===null)return;
+    let h;try{h=await sha(p)}catch(e){return alert('Şifre doğrulaması çalışamadı (https gerekli).')}
+    if(h===ADMIN_HASH){role='admin';toast('Yönetici girişi başarılı!')}else if(h===STAFF_HASH){role='staff';toast('Çalışan girişi başarılı!')}else return alert('Hatalı Şifre!');
+  }else{role='guest';toast('Çıkış yapıldı.')}
+  applyRole();
+}
+function applyRole(){
+  const lv={guest:0,staff:1,admin:2};
+  document.querySelectorAll('[data-r]').forEach(e=>e.classList.toggle('hide',lv[role]<lv[e.dataset.r]));
+  $('gate').classList.toggle('hide',role!=='guest');
+  const b=$('role');b.textContent=role==='admin'?'Yönetici':role==='staff'?'Çalışan':'Ziyaretçi Modu';b.className='admin-badge role-'+role;
+  $('auth-btn').textContent=role==='guest'?'Giriş Yap':'Çıkış';
+  const act=document.querySelector('.tab-btn.active');if(!act||act.classList.contains('hide'))document.querySelector('.tab-btn[data-t="siparis"]').click();
+  render();
+}
+
+/* ---------- Veri katmanı: Firebase (canlı) ya da yerel ---------- */
+const cfg={apiKey:"AIzaSyAcg4jjN18m33SOu2kjSGphyHSvKnqwwS4",authDomain:"cam-atolye.firebaseapp.com",databaseURL:"https://cam-atolye-default-rtdb.europe-west1.firebasedatabase.app",projectId:"cam-atolye",storageBucket:"cam-atolye.firebasestorage.app",messagingSenderId:"133635007849",appId:"1:133635007849:web:c9bcf1d68486cc9ebd89f8"};
+function localSave(){localStorage.setItem('cam_local',JSON.stringify({orders,settings,montaj}))}
+function initStore(){
+  firebase.initializeApp(cfg);
+  firebase.auth().signInAnonymously().then(()=>{
+    db=firebase.database().ref();
+    db.child('orders').on('value',s=>{orders=s.val()||{};render()});
+    db.child('montaj').on('value',s=>{montaj=s.val()||{};render()});
+    db.child('settings').on('value',s=>{settings={...DEF,...(s.val()||{})};fillSettings();render()});
+    firebase.database().ref('.info/connected').on('value',s=>setSync(s.val()?'☁️ Canlı':'⚠️ Bağlantı yok',s.val()));
+  }).catch(e=>{setSync('⚠️ Giriş hatası',false);console.error(e)});
+}
+function setSync(t,ok){const s=$('sync');s.textContent=t;s.className='admin-badge '+(ok?'role-admin':'role-guest')}
+function saveOrder(o){db&&db.child('orders/'+o.id).set(o)}
+function delOrder(id){db&&db.child('orders/'+id).remove()}
+function saveSettings(s){db&&db.child('settings').set(s)}
+function saveMontaj(m){db&&db.child('montaj/'+m.id).set(m)}
+function delMontaj(id){db&&db.child('montaj/'+id).remove()}
+
+/* ---------- Sekmeler ---------- */
+document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.tab-content').forEach(x=>x.classList.toggle('active',x.id==='tab-'+b.dataset.t));
+});
+
+/* ---------- Siparişler ---------- */
+$('add').onclick=()=>{
+  const w=+$('f-w').value,h=+$('f-h').value,q=+$('f-q').value;
+  if(!(w>0&&h>0&&q>0))return toast('En, boy ve adet girin');
+  const no=Math.max(0,...Object.values(orders).map(o=>o.no||0))+1,id='o'+Date.now();
+  saveOrder({id,no,m:$('f-m').value.trim(),a:$('f-a').value.trim(),w,h,q,t:+$('f-t').value,c:+$('f-c').value,camDone:false,citaDone:false,ts:Date.now()});
+  ['f-w','f-h'].forEach(i=>$(i).value='');$('f-q').value=1;toast('Sipariş #'+no+' eklendi');
+};
+$('flt').onchange=render;
+window.tog=(id,k)=>{const o=orders[id];o[k]=!o[k];saveOrder(o)};
+window.del=id=>{if(confirm('Sipariş silinsin mi?'))delOrder(id)};
+const list=()=>Object.values(orders).sort((a,b)=>(a.no||0)-(b.no||0));
+function renderOrders(){
+  const f=$('flt').value,rows=list().filter(o=>f==='hepsi'||!o.camDone||!o.citaDone);
+  $('olist').innerHTML='<tr><th>No</th><th>Müşteri / Apartman</th><th>Ölçü</th><th>Adet</th><th>Cam</th><th>Çıta</th><th>Durum</th><th></th></tr>'+
+  (rows.map(o=>`<tr><td>#${o.no}</td><td>${esc(o.m)}<br><span class="mu">${esc(o.a)}</span></td><td>${o.w}×${o.h}</td><td>${o.q}</td><td>${o.t} mm</td><td>${o.c} mm</td>
+  <td><span class="pill ${o.camDone?'d':''}" onclick="tog('${o.id}','camDone')">Cam ${o.camDone?'✔':'…'}</span> <span class="pill ${o.citaDone?'d':''}" onclick="tog('${o.id}','citaDone')">Çıta ${o.citaDone?'✔':'…'}</span></td>
+  <td>${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="del('${o.id}')">🗑</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mu">Sipariş yok.</td></tr>');
+}
+
+/* ---------- Cam kesim motoru (şerit/guillotine yerleşim) ---------- */
+function pack(ps,SW,SH,k){
+  const sheets=[],bad=[],items=[];
+  ps.forEach(p=>{const a=Math.max(p.w,p.h),b=Math.min(p.w,p.h);
+    if(a<=SW&&b<=SH)items.push({...p,a,b});else if(b<=SW&&a<=SH)items.push({...p,a:b,b:a});else bad.push(p)});
+  items.sort((x,y)=>y.b-x.b||y.a-x.a);
+  items.forEach(p=>{const pw=p.a+k,ph=p.b+k;let ok=false;
+    for(const s of sheets){
+      for(const sh of s.sh)if(ph<=sh.h&&sh.x+pw<=SW+k){s.p.push({...p,x:sh.x,y:sh.y});sh.items.push(p);sh.x+=pw;ok=true;break}
+      if(ok)break;
+      if(s.y+ph<=SH+k){const sh={y:s.y,h:ph,x:pw,items:[p]};s.sh.push(sh);s.p.push({...p,x:0,y:s.y});s.y+=ph;ok=true;break}}
+    if(!ok)sheets.push({y:ph,sh:[{y:0,h:ph,x:pw,items:[p]}],p:[{...p,x:0,y:0}]})});
+  return{sheets,bad};
+}
+function planGlass(){
+  const k=+settings.kerf||0,sizes=String(settings.sheets).split(',').map(s=>s.trim().split(/x|×/i).map(Number)).filter(s=>s[0]>0&&s[1]>0).map(([a,b])=>[Math.max(a,b),Math.min(a,b)]);
+  const gr={};list().filter(o=>!o.camDone).forEach(o=>{for(let i=0;i<o.q*2;i++)(gr[o.t]=gr[o.t]||[]).push({w:o.w,h:o.h,id:o.id,n:o.no})});
+  return Object.keys(gr).map(t=>{let best=null;
+    sizes.forEach(([SW,SH])=>{const r=pack(gr[t],SW,SH,k),cost=r.sheets.length*SW*SH;
+      if(!best||r.bad.length<best.bad.length||(r.bad.length===best.bad.length&&cost<best.cost))best={...r,SW,SH,cost}});
+    const area=best.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0);
+    return{t,...best,pcs:gr[t].length,eff:best.sheets.length?100*area/best.cost:0};
+  });
+}
+function renderGlass(){
+  gPlan=planGlass();let out='';
+  gPlan.forEach(g=>{
+    out+=`<div class="box"><h3>${g.t} mm cam — ${g.sheets.length} levha (${g.SW}×${g.SH})</h3><p class="mu">${g.pcs} parça · verim %${g.eff.toFixed(1)} · en uygun levha ölçüsü otomatik seçildi</p>`;
+    if(g.bad.length)out+=`<p class="err">Hiçbir levhaya sığmayan parça: ${g.bad.map(p=>p.w+'×'+p.h+' (#'+p.n+')').join(', ')}</p>`;
+    g.sheets.forEach((s,i)=>{const fs=g.SW/50;
+      out+=`<p><b>Levha ${i+1}</b></p><svg class="pl" viewBox="0 0 ${g.SW} ${g.SH}"><rect width="${g.SW}" height="${g.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
+      s.p.map(p=>`<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="#BFE3F2" stroke="#0B6E99" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle" fill="#14202b">${p.a}×${p.b} #${p.n}</text>`).join('')+'</svg>'+
+      s.sh.map((sh,j)=>`<div class="ins"><b>${j+1}. şerit</b> (${sh.items[0].b} mm yükseklikte kes): ${sh.items.map(p=>p.a+'×'+p.b+' <span class="mu">#'+p.n+'</span>').join(' · ')}</div>`).join('')});
+    out+='</div>'});
+  $("o-cam").innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
+}
+
+/* ---------- Çıta kesim motoru ---------- */
+function planCita(){
+  const L=+settings.bl,k=+settings.kerf||0,d=+settings.ded||0,gr={};
+  list().filter(o=>!o.citaDone).forEach(o=>{for(let j=0;j<o.q;j++){const a=o.w-d,b=o.h-d;[a,a,b,b].forEach(v=>(gr[o.c]=gr[o.c]||[]).push({v,id:o.id,n:o.no}))}});
+  return Object.keys(gr).sort((a,b)=>a-b).map(c=>{const ps=gr[c].sort((x,y)=>y.v-x.v),bars=[];
+    ps.forEach(p=>{let b=bars.find(b=>b.u+p.v+k<=L+k);if(!b){b={u:0,p:[]};bars.push(b)}b.p.push(p);b.u+=p.v+k});
+    bars.forEach(b=>b.fire=L-b.p.reduce((s,p)=>s+p.v,0)-(b.p.length-1)*k);
+    const tot=ps.reduce((s,p)=>s+p.v,0);return{c,bars,L,tot,eff:100*tot/(bars.length*L)}});
+}
+function renderCita(){
+  tPlan=planCita();let out='';
+  tPlan.forEach(g=>{out+=`<div class="box"><h3>${g.c} mm çıta — ${g.bars.length} adet ${g.L} mm boy</h3><p class="mu">Toplam ${g.tot} mm · verim %${g.eff.toFixed(1)}</p>`;
+    g.bars.forEach((b,i)=>{out+=`<div class="ins"><b>Çıta ${i+1}:</b> ${b.p.map(p=>p.v+' <span class="mu">#'+p.n+'</span>').join(' + ')} · fire ${b.fire} mm</div><div class="bar">`+
+      b.p.map(p=>`<div style="width:${100*p.v/g.L}%">${p.v}</div>`).join('')+`<div class="wa" style="width:${Math.max(0,100*b.fire/g.L)}%"></div></div>`});
+    out+='</div>'});
+  $('o-cita').innerHTML=out||'<div class="box mu">Kesilecek çıta yok.</div>';
+}
+
+/* ---------- Kesildi işaretle & Excel ---------- */
+function markDone(plan,key,ids){
+  if(!ids.size)return toast('Plan boş');
+  if(!confirm(ids.size+' sipariş kesildi olarak işaretlensin mi?'))return;
+  ids.forEach(id=>{const o=orders[id];if(o){o[key]=true;saveOrder(o)}});toast('İşaretlendi');
+}
+$('dc').onclick=()=>markDone(gPlan,'camDone',new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)))));
+$('dt').onclick=()=>markDone(tPlan,'citaDone',new Set(tPlan.flatMap(g=>g.bars.flatMap(b=>b.p.map(p=>p.id)))));
+$('rc').onclick=$('rt').onclick=()=>{render();toast('Plan yenilendi')};
+const who=id=>{const o=orders[id]||{};return[o.m||'',o.a||'']};
+function xl(rows,name){const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Plan');XLSX.writeFile(wb,name+'.xlsx')}
+$('xc').onclick=()=>{const r=[['Cam mm','Levha','Levha ölçüsü','Sipariş','Müşteri','Apartman','En','Boy','Şerit y.']];
+  gPlan.forEach(g=>g.sheets.forEach((s,i)=>s.p.forEach(p=>r.push([g.t,i+1,g.SW+'x'+g.SH,'#'+p.n,...who(p.id),p.a,p.b,p.y]))));xl(r,'cam-kesim')};
+$('xt').onclick=()=>{const r=[['Çıta mm','Çıta no','Parça (mm)','Sipariş','Müşteri','Apartman','Fire']];
+  tPlan.forEach(g=>g.bars.forEach((b,i)=>b.p.forEach(p=>r.push([g.c,i+1,p.v,'#'+p.n,...who(p.id),b.fire]))));xl(r,'cita-kesim')};
+
+/* ---------- Ayarlar ---------- */
+function fillSettings(){$('s-sheets').value=settings.sheets;$('s-kerf').value=settings.kerf;$('s-bl').value=settings.bl;$('s-ded').value=settings.ded}
+$('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({sheets:$('s-sheets').value,kerf:+$('s-kerf').value,bl:+$('s-bl').value,ded:+$('s-ded').value});toast('Kaydedildi')};
+/* ---------- Montaj ---------- */
+const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
+$('m-sip').onchange=()=>{const o=orders[$('m-sip').value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
+$('madd').onclick=()=>{
+  const m={id:'m'+Date.now(),sip:$('m-sip').value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
+  if(!m.m&&!m.a)return toast('Müşteri veya adres girin');if(!m.d)return toast('Montaj tarihi seçin');
+  saveMontaj(m);['m-m','m-a','m-e','m-n'].forEach(i=>$(i).value='');$('m-sip').value='';toast('Montaj eklendi');
+};
+$('mflt').onchange=render;
+window.mnext=id=>{const m=montaj[id];m.st=NEXT[m.st||'bekliyor'];saveMontaj(m)};
+window.mdel=id=>{if(confirm('Montaj silinsin mi?'))delMontaj(id)};
+function renderMontaj(){
+  const s=$('m-sip'),cur=s.value;
+  s.innerHTML='<option value="">— Siparişten seç (isteğe bağlı) —</option>'+list().map(o=>`<option value="${o.id}">#${o.no} ${esc(o.m)} ${esc(o.a)}</option>`).join('');s.value=cur;
+  const f=$('mflt').value,rows=Object.values(montaj).filter(m=>f==='hepsi'||m.st!=='tamam').sort((a,b)=>(a.d||'').localeCompare(b.d||''));
+  const today=new Date().toISOString().slice(0,10);
+  $('mlist').innerHTML='<tr><th>Tarih</th><th>Müşteri / Adres</th><th>Sipariş</th><th>Ekip</th><th>Not</th><th>Durum</th><th></th></tr>'+
+  (rows.map(m=>`<tr><td>${m.d?m.d.split('-').reverse().join('.'):''}${m.st!=='tamam'&&m.d===today?' <span class="pill">Bugün</span>':''}${m.st!=='tamam'&&m.d<today?' <span class="pill" style="background:var(--rust);color:#fff">Gecikti</span>':''}</td>
+  <td>${esc(m.m)}<br><span class="mu">${esc(m.a)}</span></td><td>${m.sip&&orders[m.sip]?'#'+orders[m.sip].no:'-'}</td><td>${esc(m.e)}</td><td>${esc(m.n)}</td>
+  <td><button class="btn btn-sm" onclick="mnext('${m.id}')">${ST[m.st||'bekliyor']}</button></td>
+  <td>${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="mdel('${m.id}')">🗑</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mu">Montaj kaydı yok.</td></tr>');
+}
+function render(){if(role==='guest')return;renderOrders();renderGlass();renderCita();renderMontaj()}
+setTimeout(()=>{const s=$('splash-screen');if(s)s.classList.add('hidden')},2500);
+checkDeviceLink();applyRole();initStore();
+
+</script></body></html>
