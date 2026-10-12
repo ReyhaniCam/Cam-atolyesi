@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>.drop{border:2px dashed var(--steel-line)}.drop.over{border-color:#0B6E99;background:rgba(11,110,153,.1)}#lab{display:none}.lb{border:1px dashed #000;padding:6px;font-size:12px;break-inside:avoid}.dn{opacity:.55;text-decoration:line-through}@media print{body.pl .app,body.pl .toast{display:none!important}body.pl #lab{display:grid;grid-template-columns:repeat(3,1fr);gap:4mm}}</style>
 </head><body>
 <div id="splash-screen"><div class="splash-content"><img src="logo.png" alt="Reyhani Yapı" class="splash-logo"><div class="loader"></div><p>Yükleniyor...</p></div></div>
 <div class="app">
@@ -35,19 +36,19 @@
 <select id="flt"><option value="bekleyen">Bekleyenler</option><option value="hepsi">Hepsi</option></select></div>
 <div class="tb"><table id="olist"></table></div></div></div>
 
-<div id="tab-cam" class="tab-content"><div class="box fr"><button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
+<div id="tab-cam" class="tab-content"><div class="box fr"><button class="btn" id="lk">🔓 Açık</button><button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
 <button class="btn btn-success" id="dc">✅ Bu planı kesildi işaretle</button>
-<button class="btn" id="xc">📥 Excel</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cam"></div></div>
+<button class="btn" id="xc">📥 Excel</button><button class="btn" id="lb">🏷️ Etiket</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cam"></div></div>
 
 <div id="tab-cita" class="tab-content"><div class="box fr"><button class="btn btn-primary" id="rt">🔄 Planı yenile</button>
 <button class="btn btn-success" id="dt">✅ Bu planı kesildi işaretle</button>
 <button class="btn" id="xt">📥 Excel</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cita"></div></div>
 
-<div id="tab-fis" class="tab-content"><div class="box"><h3>Fişten sipariş oku (Gemini)</h3>
+<div id="tab-fis" class="tab-content"><div class="box drop" id="g-drop"><h3>Fişten sipariş oku (Gemini)</h3>
 <div class="fr"><label>Müşteri<input id="g-m"></label><label>Apartman / Adres<input id="g-a"></label></div>
 <div class="fr"><label>Fiş no<input id="g-no"></label><label>Fiş tarihi<input id="g-d" type="date"></label><label style="flex:2">Fiş notu<input id="g-n"></label></div>
 <div class="fr"><label style="flex:2">Fiş fotoğrafı<input id="g-f" type="file" accept="image/*,application/pdf"></label><button class="btn" onclick="gkey()">🔑 API anahtarı</button></div>
-<p class="mu" id="g-s">Fişin net bir fotoğrafını ya da PDF dosyasını seçin. Okunan satırlar onaylamadan siparişe eklenmez.</p></div>
+<p class="mu" id="g-s">Fişin net bir fotoğrafını ya da PDF dosyasını seçin, bu kutuya sürükleyip bırakın veya yapıştırın (Ctrl+V). Okunan satırlar onaylamadan siparişe eklenmez.</p></div>
 <div class="box hide" id="g-box"><h3>Okunan satırlar — kontrol edin</h3><p class="mu">Kırmızı satırlar Gemini'nin emin olmadığı yerler; fişle karşılaştırın. Adet = çift cam adedi (çift camda her adet için 2 kat cam kesilir).</p>
 <div class="tb"><table id="g-t"></table></div><br><button class="btn btn-success" id="g-ok">✅ Siparişlere ekle</button></div></div>
 <div id="tab-stok" class="tab-content"><div class="box"><h3>Kalıp (levha) ekle — ölçüler cm</h3>
@@ -70,7 +71,7 @@
 <label>Çıta ölçü düşümü (mm)<input id="s-ded" type="number"></label></div>
 <p class="mu">Çıta çerçevesi = 2×(En−düşüm) + 2×(Boy−düşüm). Kalıp (levha) ölçüleri artık <b>Kalıplar</b> sekmesinden girilir.</p>
 <button class="btn btn-primary" id="ssave">💾 Kaydet</button></div></div>
-</div><div class="toast" id="toast"></div>
+</div><div id="lab"></div><div class="toast" id="toast"></div>
 <script>
 const $=i=>document.getElementById(i);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -80,7 +81,7 @@ const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTi
 
 /* ---------- Giriş (Reyhani sitesiyle aynı şifreler) ---------- */
 const ADMIN_HASH="50e65b1455800c98b480cec56db88524fabd630ddd992df1a58faf5a6edd2430",STAFF_HASH="2b084c9efd9150fb848e4efb0b5f03f455470f68b153814944e14a6204ec5b9a",DEVICE_AUTH_HASH="12a7d32afcd5140951fe6ea7b2c8ed7a9c2b196333190f28f899aaf85699c7e6",DEVKEY='reyhani_device_authorized_v1';
-let role='guest',montaj={};
+let role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
 const devOK=()=>{try{return localStorage.getItem(DEVKEY)==='true'}catch(e){return false}};
 async function checkDeviceLink(){
@@ -116,6 +117,7 @@ function initStore(){
     db=firebase.database().ref();
     db.child('orders').on('value',s=>{orders=s.val()||{};render()});
     db.child('stock').on('value',s=>{stock=s.val()||{};render()});
+    db.child('cplan').on('value',s=>{CP={locked:false,skip:{},seq:[],done:{},snap:null,...(s.val()||{})};CP.skip=CP.skip||{};CP.done=CP.done||{};CP.seq=Array.isArray(CP.seq)?CP.seq:Object.values(CP.seq||{});render()});
     db.child('montaj').on('value',s=>{montaj=s.val()||{};render()});
     db.child('settings').on('value',s=>{settings={...DEF,...(s.val()||{})};fillSettings();render()});
     firebase.database().ref('.info/connected').on('value',s=>setSync(s.val()?'☁️ Canlı':'⚠️ Bağlantı yok',s.val()));
@@ -127,6 +129,8 @@ function delOrder(id){db&&db.child('orders/'+id).remove()}
 function saveSettings(s){db&&db.child('settings').set(s)}
 function saveStock(s){db&&db.child('stock/'+s.id).set(s)}
 function delStock(id){db&&db.child('stock/'+id).remove()}
+function saveCP(){db&&db.child('cplan').set({locked:!!CP.locked,skip:CP.skip||{},seq:CP.seq||[],done:CP.done||{},snap:CP.snap||null})}
+function resetCP(){CP={locked:false,skip:{},seq:[],done:{},snap:null};saveCP()}
 function saveMontaj(m){db&&db.child('montaj/'+m.id).set(m)}
 function delMontaj(id){db&&db.child('montaj/'+id).remove()}
 
@@ -180,8 +184,8 @@ window.gkey=()=>{const k=prompt('Google API anahtarını yapıştırın:',localS
 function fileB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>res(String(r.result).split(',')[1]);r.readAsDataURL(f)})}
 function shrink(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const i=new Image();i.onerror=rej;i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85).split(',')[1])};i.src=r.result};r.readAsDataURL(f)})}
 const GP=`Bu, el yazısıyla yazılmış bir cam sipariş fişi. Ölçüler SANTİMETRE (ondalık virgül veya nokta olabilir). Başlıklar cam yapısını verir: "4+12+4" = iki kat 4 mm cam + 12 mm çıta = ÇİFT CAM (kat:2, cam:4, cita:12). "tek" yazan gruplar TEK CAM (kat:1, cita:0). "buzlu" yazan gruplar tur:"Buzlu", diğerleri tur:"Düz". Satırlar "sıra no - en x boy = adet" biçimindedir. SADECE geçerli bir JSON nesnesi ver: {"musteri":null,"siparis_no":null,"tarih":null,"notlar":null,"gruplar":[{"grup":"başlık","kat":2,"cam":4,"cita":12,"tur":"Düz","parcalar":[{"no":"1","en":190.2,"boy":75.3,"adet":2,"emin":true}]}]}. musteri, siparis_no ve notlar fişte yazıyorsa metin olarak yaz, yoksa null; tarih YYYY-MM-DD biçiminde, yoksa null. Sayıları cm olarak ve nokta ondalıklı yaz. Adet yazılmamışsa adet:null. Okuyamadığın, silinmiş/üstü çizili veya emin olmadığın satırlarda ve başlığı belirsiz gruplarda emin:false yaz. Ölçü uydurma.`;
-$('g-f').onchange=async e=>{
-  const f=e.target.files[0];if(!f)return;let key=localStorage.getItem('gemini_api_key');
+async function readFis(f){
+  if(!f)return;let key=localStorage.getItem('gemini_api_key');
   if(!key){gkey();key=localStorage.getItem('gemini_api_key');if(!key)return}
   $('g-s').textContent='⏳ Fiş okunuyor...';
   try{
@@ -195,7 +199,14 @@ $('g-f').onchange=async e=>{
     if(!Array.isArray(raw)){if(raw.musteri&&!$('g-m').value)$('g-m').value=raw.musteri;if(raw.siparis_no)$('g-no').value=String(raw.siparis_no);if(/^\d{4}-\d{2}-\d{2}$/.test(raw.tarih||''))$('g-d').value=raw.tarih;if(raw.notlar)$('g-n').value=raw.notlar}
     gRows=[];gs.forEach(g=>(g.parcalar||[]).forEach(p=>gRows.push({en:p.en,boy:p.boy,adet:p.adet==null?'':p.adet,k:+g.kat===1?1:2,t:+g.cam||4,c:+g.cita||12,tur:/buz/i.test(g.tur)?'Buzlu':'Düz',ok:p.emin!==false&&p.adet!=null})));
     renderG();$('g-s').textContent='✅ '+gRows.length+' satır okundu. Kırmızı satırları fişle karşılaştırıp düzeltin, sonra onaylayın.';
-  }catch(err){$('g-s').textContent='❌ '+(/api key/i.test(err.message)?'API anahtarı geçersiz.':err.message)}finally{e.target.value=''}};
+  }catch(err){$('g-s').textContent='❌ '+(/api key/i.test(err.message)?'API anahtarı geçersiz.':err.message)}finally{$('g-f').value=''}}
+$('g-f').onchange=e=>readFis(e.target.files[0]);
+const dz=$('g-drop'),okF=f=>f&&(/^image\//.test(f.type)||f.type==='application/pdf');
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over')}));
+dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];okF(f)?readFis(f):toast('Sadece fotoğraf veya PDF bırakın')});
+window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
+document.addEventListener('paste',e=>{if(!$('tab-fis').classList.contains('active'))return;const f=[...(e.clipboardData&&e.clipboardData.files||[])][0];if(okF(f))readFis(f)});
 const sel=(i,k,o,v)=>`<select onchange="gset(${i},'${k}',this.value)">${o.map(x=>`<option value="${x[0]}"${String(x[0])===String(v)?' selected':''}>${x[1]}</option>`).join('')}</select>`;
 const inp=(i,k,v,w)=>`<input style="width:${w}px;min-height:36px!important" value="${v??''}" onchange="gset(${i},'${k}',this.value)">`;
 window.gset=(i,k,v)=>{gRows[i][k]=['k','t','c'].includes(k)?+v:v;gRows[i].ok=true;renderG()};
@@ -228,11 +239,13 @@ function pack(ps,SW,SH,k){
 function remnants(S,SW,SH,k){const r=[];S.sh.forEach(x=>{const w=SW-x.x,h=x.h-k;if(w>=300&&h>=300)r.push([Math.max(w,h),Math.min(w,h)])});const bh=SH-S.y;if(bh>=300)r.push([SW,bh]);return r}
 function planGlass(){
   const k=+settings.kerf||0,gr={};
-  list().filter(o=>!o.camDone).forEach(o=>{const key=o.t+'|'+TUR(o);for(let i=0;i<o.q*K(o);i++){(gr[key]=gr[key]||[]).push({w:o.w,h:o.h,id:o.id,n:o.no,u:gr[key].length})}});
-  return Object.keys(gr).map(key=>{
-    const[t,tur]=key.split('|'),pcs=gr[key].length,sheets=[],bad=[];
+  const exm={};
+  list().filter(o=>!o.camDone).forEach(o=>{const key=o.t+'|'+TUR(o),kk=K(o);for(let i=0;i<o.q*kk;i++){const pid=o.id+'~'+i,pc={w:o.w,h:o.h,id:o.id,n:o.no,pid,lb:'#'+o.no+'-'+(Math.floor(i/kk)+1)+(kk>1?'AB'[i%kk]:'')};(CP.skip[pid]?(exm[key]=exm[key]||[]):(gr[key]=gr[key]||[])).push(pc)}});
+  Object.values(gr).forEach(a=>a.forEach((p,i)=>p.u=i));
+  return [...new Set([...Object.keys(gr),...Object.keys(exm)])].map(key=>{
+    const gk=gr[key]||[],[t,tur]=key.split('|'),pcs=gk.length,sheets=[],bad=[];
     const av=Object.values(stock).filter(s=>s.t==t&&(s.tur||'Düz')==tur&&s.q>0).map(s=>({...s,left:s.q}));
-    let rem=gr[key].filter(p=>{const a=Math.max(p.w,p.h),b=Math.min(p.w,p.h);if(av.some(s=>a<=s.w&&b<=s.h))return true;bad.push(p);return false});
+    let rem=gk.filter(p=>{const a=Math.max(p.w,p.h),b=Math.min(p.w,p.h);if(av.some(s=>a<=s.w&&b<=s.h))return true;bad.push(p);return false});
     while(rem.length){
       const cand=av.filter(s=>s.left>0).map(s=>{const r=pack(rem,s.w,s.h,k);return{s,r,S:r.sheets[0]}}).filter(c=>c.S);
       if(!cand.length)break;
@@ -241,7 +254,7 @@ function planGlass(){
       const done=new Set(pick.S.p.map(p=>p.u));rem=rem.filter(p=>!done.has(p.u));pick.s.left--;
       sheets.push({...pick.S,SW:pick.s.w,SH:pick.s.h,stockId:pick.s.id,artik:pick.s.artik,rem:remnants(pick.S,pick.s.w,pick.s.h,k)});
     }
-    return{t,tur,sheets,bad:bad.concat(rem),pcs,noStock:!av.length,all:gr[key],stk:Object.values(stock).filter(s=>s.t==t&&(s.tur||'Düz')==tur)};
+    return{t,tur,sheets,bad:bad.concat(rem),pcs,noStock:!av.length,ex:exm[key]||[],all:gk,stk:Object.values(stock).filter(s=>s.t==t&&(s.tur||'Düz')==tur)};
   });
 }
 function cmpTable(g){
@@ -253,20 +266,50 @@ function cmpTable(g){
   return `<details><summary class="mu">📊 Kalıp karşılaştırması: tüm parçalar tek tip kalıptan kesilseydi</summary><div class="tb"><table><tr><th>Kalıp</th><th>Ölçü (cm)</th><th>Gereken adet</th><th>Fire %</th><th>Stok</th><th>Öneri</th></tr>`+
   rows.map(r=>`<tr><td>${r.s.artik?'Artık':'Tam levha'}</td><td>${cm(r.s.w)}×${cm(r.s.h)}</td><td>${r.fits?r.n:'-'}</td><td>${r.fits?r.fire.toFixed(1):'-'}</td><td>${r.s.q}</td><td>${!r.fits?'❌ Sığmayan parça var':r===best?'✅ En uygun':r.ok?'Uygun':'⚠️ Stok yetmez'}</td></tr>`).join('')+`</table></div></details>`;
 }
+function seqList(g){
+  const def=g.sheets.flatMap((s,si)=>s.sh.flatMap(sh=>sh.items.map(p=>({...p,si})))),idx={};
+  CP.seq.forEach((pid,i)=>idx[pid]=i);
+  return def.map((p,i)=>({p,i})).sort((x,y)=>(idx[x.p.pid]??1e6+x.i)-(idx[y.p.pid]??1e6+y.i)).map(x=>x.p);
+}
+window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
+window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
+window.cmv=(gi,pid,d)=>{if(role!=='admin'||CP.locked)return;const ids=seqList(gPlan[gi]).map(p=>p.pid),i=ids.indexOf(pid),j=i+d;if(i<0||j<0||j>=ids.length)return;
+  [ids[i],ids[j]]=[ids[j],ids[i]];const mine=new Set(ids);CP.seq=CP.seq.filter(x=>!mine.has(x)).concat(ids);saveCP();render()};
+$('lk').onclick=()=>{
+  if(!CP.locked){if(!confirm('Plan kilitlensin mi? Yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
+    CP.snap=JSON.stringify(planGlass().map(({all,stk,...g})=>g));CP.locked=true}
+  else{if(role!=='admin')return toast('Kilidi sadece yönetici açabilir');
+    if(!confirm('Kilit açılırsa plan yeniden hesaplanır; kesime başlanmış kalıplarda yerleşim değişebilir. Devam edilsin mi?'))return;CP.locked=false;CP.snap=null}
+  saveCP();render()};
+$('lb').onclick=()=>{let t='';
+  gPlan.forEach(g=>seqList(g).forEach((p,i)=>{const o=orders[p.id]||{},two=K(o)>1,s=p.lb.slice(-1);
+    t+=`<div class="lb"><b style="font-size:18px">${p.lb}</b> · sıra ${i+1}<br>${cm(p.a)}×${cm(p.b)} cm · ${g.t} mm ${g.tur}<br>${esc(o.m)} ${esc(o.a)}<br>${two?'Çift cam, '+s+' camı (eşi: '+p.lb.slice(0,-1)+(s==='A'?'B':'A')+')':'Tek cam'} · kalıp ${p.si+1}</div>`}));
+  if(!t)return toast('Etiket yok');$('lab').innerHTML=t;document.body.classList.add('pl');window.print();setTimeout(()=>document.body.classList.remove('pl'),500)};
+function listTable(g,gi,sl){
+  const ed=!CP.locked&&role==='admin';
+  let t=`<details open><summary><b>📋 Kesim listesi (${sl.length} parça)</b></summary><div class="tb"><table><tr><th>Sıra</th><th>Kimlik</th><th>Ölçü (cm)</th><th>Müşteri</th><th>Kalıp</th><th>Kesildi</th>${ed?'<th>Dahil</th><th>Sıra</th>':''}</tr>`;
+  sl.forEach((p,i)=>{const o=orders[p.id]||{},dn=CP.done[p.pid];
+    t+=`<tr class="${dn?'dn':''}"><td>${i+1}</td><td><b>${p.lb}</b></td><td>${cm(p.a)}×${cm(p.b)}</td><td>${esc(o.m)} <span class="mu">${esc(o.a)}</span></td><td>${p.si+1}</td><td><input type="checkbox" style="width:22px;min-height:22px" ${dn?'checked':''} onchange="cdone('${p.pid}')"></td>`+
+    (ed?`<td><input type="checkbox" style="width:22px;min-height:22px" checked onchange="cskip('${p.pid}')"></td><td><button class="btn btn-sm" onclick="cmv(${gi},'${p.pid}',-1)">▲</button> <button class="btn btn-sm" onclick="cmv(${gi},'${p.pid}',1)">▼</button></td>`:'')+'</tr>'});
+  if(ed)(g.ex||[]).forEach(p=>{const o=orders[p.id]||{};t+=`<tr class="dn"><td>-</td><td>${p.lb}</td><td>${cm(p.w)}×${cm(p.h)}</td><td>${esc(o.m)}</td><td>-</td><td></td><td><input type="checkbox" style="width:22px;min-height:22px" onchange="cskip('${p.pid}')"></td><td class="mu">plan dışı</td></tr>`});
+  return t+'</table></div></details>';
+}
 function renderGlass(){
-  gPlan=planGlass();let out='';
-  gPlan.forEach(g=>{
-    const tot=g.sheets.reduce((s,x)=>s+x.SW*x.SH,0),used=g.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0);
+  const lk=CP.locked&&CP.snap;gPlan=lk?JSON.parse(CP.snap):planGlass();let out='';
+  $('lk').textContent=lk?'🔒 Kilitli':'🔓 Açık';
+  let pend=0;if(lk){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat(g.bad.map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
+  out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+(pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için yönetici kilidi açıp tekrar kilitlemeli.</span>`:''):'🔓 <b>Plan açık.</b> '+(role==='admin'?'Listeden parça dahil/hariç edebilir ve sıralayabilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
+  gPlan.forEach((g,gi)=>{
+    const tot=g.sheets.reduce((s,x)=>s+x.SW*x.SH,0),used=g.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0),sl=seqList(g),sm={};sl.forEach((p,i)=>sm[p.pid]=i+1);
     out+=`<div class="box"><h3>${g.t} mm ${g.tur} cam — ${g.sheets.length} kalıp</h3><p class="mu">${g.pcs} parça · toplam verim %${tot?(100*used/tot).toFixed(1):0}</p>`;
-    if(g.noStock)out+=`<p class="err">⚠️ Kalıplar sekmesinde ${g.t} mm ${g.tur} cam stoğu yok.</p>`;
-    else if(g.bad.length)out+=`<p class="err">⚠️ Kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' #'+p.n).join(', ')}</p>`;
-    out+=cmpTable(g);
-    g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/50;
+    if(g.noStock&&g.pcs)out+=`<p class="err">⚠️ Kalıplar sekmesinde ${g.t} mm ${g.tur} cam stoğu yok.</p>`;
+    else if(g.bad.length)out+=`<p class="err">⚠️ Kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' '+(p.lb||'#'+p.n)).join(', ')}</p>`;
+    if(!lk&&g.all)out+=cmpTable(g);
+    g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/55;
       out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
       <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
-      s.p.map(p=>`<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="#BFE3F2" stroke="#0B6E99" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)} #${p.n}</text>`).join('')+'</svg>'+
-      s.sh.map((sh,j)=>`<div class="ins"><b>${j+1}. kesim:</b> kalıbı ${cm(sh.items[0].b)} cm genişliğinde şeritlere ayır → bu şeritten: ${sh.items.map(p=>cm(p.a)+'×'+cm(p.b)+' <span class="mu">#'+p.n+'</span>').join(' · ')}</div>`).join('')});
-    out+='</div>'});
+      s.p.map(p=>`<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${CP.done[p.pid]?'#BFE8C8':'#BFE3F2'}" stroke="${CP.done[p.pid]?'#2E8B57':'#0B6E99'}" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle" fill="#14202b">${sm[p.pid]}) ${cm(p.a)}×${cm(p.b)} ${p.lb||'#'+p.n}</text>`).join('')+'</svg>'});
+    out+=listTable(g,gi,sl)+'</div>'});
   $('o-cam').innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
 }
 
@@ -295,10 +338,10 @@ function markDone(key,ids,extra){
   ids.forEach(id=>{const o=orders[id];if(o){o[key]=true;saveOrder(o)}});if(extra)extra.run();toast('İşaretlendi');
 }
 $('dc').onclick=()=>{
-  const bad=new Set(gPlan.flatMap(g=>g.bad.map(p=>p.id))),ids=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id))).filter(i=>!bad.has(i)));
+  const skO=new Set(Object.keys(CP.skip).map(x=>x.split('~')[0])),bad=new Set(gPlan.flatMap(g=>g.bad.map(p=>p.id))),ids=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id))).filter(i=>!bad.has(i)&&!skO.has(i)));
   const used={},rems=[];gPlan.forEach(g=>g.sheets.forEach(s=>{used[s.stockId]=(used[s.stockId]||0)+1;s.rem.forEach(r=>rems.push({w:r[0],h:r[1],t:+g.t,tur:g.tur}))}));
   markDone('camDone',ids,{msg:Object.values(used).reduce((a,b)=>a+b,0)+' kalıp stoktan düşülecek, '+rems.length+' artık parça stoğa eklenecek.',run(){
-    Object.entries(used).forEach(([sid,n])=>{const s=stock[sid];if(s){s.q=Math.max(0,s.q-n);saveStock(s)}});
+    resetCP();Object.entries(used).forEach(([sid,n])=>{const s=stock[sid];if(s){s.q=Math.max(0,s.q-n);saveStock(s)}});
     rems.forEach(r=>saveStock({id:'s'+rid(),w:r.w,h:r.h,t:r.t,tur:r.tur,q:1,artik:true}))}});
 };
 $('dt').onclick=()=>markDone('citaDone',new Set(tPlan.flatMap(g=>g.bars.flatMap(b=>b.p.map(p=>p.id)))));
@@ -306,7 +349,7 @@ $('rc').onclick=$('rt').onclick=()=>{render();toast('Plan yenilendi')};
 const who=id=>{const o=orders[id]||{};return[o.m||'',o.a||'']};
 function xl(rows,name){const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Plan');XLSX.writeFile(wb,name+'.xlsx')}
 $('xc').onclick=()=>{const r=[['Cam','Tür','Kalıp no','Kalıp (cm)','Sipariş','Müşteri','Apartman','En (cm)','Boy (cm)']];
-  gPlan.forEach(g=>g.sheets.forEach((s,i)=>s.p.forEach(p=>r.push([g.t+' mm',g.tur,i+1,cm(s.SW)+'x'+cm(s.SH),'#'+p.n,...who(p.id),p.a/10,p.b/10]))));xl(r,'cam-kesim')};
+  gPlan.forEach(g=>g.sheets.forEach((s,i)=>s.p.forEach(p=>r.push([g.t+' mm',g.tur,i+1,cm(s.SW)+'x'+cm(s.SH),p.lb||'#'+p.n,...who(p.id),p.a/10,p.b/10]))));xl(r,'cam-kesim')};
 $('xt').onclick=()=>{const r=[['Çıta mm','Çıta no','Parça (cm)','Sipariş','Müşteri','Apartman','Fire (cm)']];
   tPlan.forEach(g=>g.bars.forEach((b,i)=>b.p.forEach(p=>r.push([g.c,i+1,p.v/10,'#'+p.n,...who(p.id),b.fire/10]))));xl(r,'cita-kesim')};
 
