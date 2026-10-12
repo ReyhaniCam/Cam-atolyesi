@@ -131,8 +131,8 @@ function delOrder(id){db&&db.child('orders/'+id).remove()}
 function saveSettings(s){db&&db.child('settings').set(s)}
 function saveStock(s){db&&db.child('stock/'+s.id).set(s)}
 function delStock(id){db&&db.child('stock/'+id).remove()}
-function saveCP(){db&&db.child('cplan').set({locked:!!CP.locked,skip:CP.skip||{},seq:CP.seq||[],done:CP.done||{},snap:CP.snap||null})}
-function resetCP(){CP={locked:false,skip:{},seq:[],done:{},snap:null};saveCP()}
+function saveCP(){db&&db.child('cplan').set({locked:!!CP.locked,skip:CP.skip||{},seq:CP.seq||[],done:CP.done||{},snap:CP.snap||null,man:CP.man||null})}
+function resetCP(){CP={locked:false,skip:{},seq:[],done:{},snap:null,man:null};saveCP()}
 function saveMontaj(m){db&&db.child('montaj/'+m.id).set(m)}
 function delMontaj(id){db&&db.child('montaj/'+id).remove()}
 
@@ -281,8 +281,7 @@ function planAttempt(pcs,av0,k,att){
     if(one.length)pick=one.sort((x,y)=>(y.s.artik?1:0)-(x.s.artik?1:0)||x.s.w*x.s.h-y.s.w*y.s.h)[0];
     else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
     pick.s.left--;rem=pick.res.left;
-    const items=pick.res.placed.slice().sort((p,q)=>p.y-q.y||p.x-q.x);
-    sheets.push({p:items,sh:[{items}],SW:pick.s.w,SH:pick.s.h,stockId:pick.s.id,artik:pick.s.artik,rem:pick.res.rm});
+    sheets.push({p:pick.res.placed,SW:pick.s.w,SH:pick.s.h,stockId:pick.s.id,artik:pick.s.artik,rem:pick.res.rm,fr:pick.res.free.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}))});
   }
   const waste=sheets.reduce((u,s)=>u+s.SW*s.SH-s.p.reduce((a,p)=>a+p.a*p.b,0)-s.rem.reduce((a,r)=>a+r[0]*r[1],0),0);
   const fresh=sheets.reduce((u,s)=>u+(s.artik?0:s.SW*s.SH),0);
@@ -332,58 +331,124 @@ function cmpTable(g){
   return `<details><summary class="mu">📊 Kalıp karşılaştırması: tüm parçalar tek tip kalıptan kesilseydi</summary><div class="tb"><table><tr><th>Kalıp</th><th>Ölçü (cm)</th><th>Gereken adet</th><th>Fire %</th><th>Stok</th><th>Öneri</th></tr>`+
   rows.map(r=>`<tr><td>${r.s.artik?'Artık':'Tam levha'}</td><td>${cm(r.s.w)}×${cm(r.s.h)}</td><td>${r.fits?r.n:'-'}</td><td>${r.fits?r.fire.toFixed(1):'-'}</td><td>${r.s.q}</td><td>${!r.fits?'❌ Sığmayan parça var':r===best?'✅ En uygun':r.ok?'Uygun':'⚠️ Stok yetmez'}</td></tr>`).join('')+`</table></div></details>`;
 }
-function seqList(g){
-  const def=g.sheets.flatMap((s,si)=>s.sh.flatMap(sh=>sh.items.map(p=>({...p,si})))),idx={};
-  CP.seq.forEach((pid,i)=>idx[pid]=i);
-  return def.map((p,i)=>({p,i})).sort((x,y)=>(idx[x.p.pid]??1e6+x.i)-(idx[y.p.pid]??1e6+y.i)).map(x=>x.p);
+/* Sistemin kendi kesim sırası: önce levhayı boydan boya bölen kesimler, sonra şeritler içinde soldan sağa */
+const ext=p=>({w:p.sw||p.a,h:p.sh||p.b});
+function cutOrder(P){
+  if(P.length<2)return P.slice();
+  const split=ax=>{const lo=ax==='y'?'y':'x',sz=ax==='y'?'h':'w',s2=P.slice().sort((p,q)=>p[lo]-q[lo]||p.y-q.y||p.x-q.x);
+    let mx=-Infinity;for(let i=0;i<s2.length-1;i++){mx=Math.max(mx,s2[i][lo]+ext(s2[i])[sz]);if(s2[i+1][lo]>=mx)return[s2.slice(0,i+1),s2.slice(i+1)]}return null};
+  const r=split('y')||split('x');
+  return r?cutOrder(r[0]).concat(cutOrder(r[1])):P.slice().sort((p,q)=>p.y-q.y||p.x-q.x);
 }
+function seqList(g){return g.sheets.flatMap((s,si)=>cutOrder(s.p).map((p,i)=>({...p,si,sq:i+1})))}
 window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
 window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
-window.cmv=(gi,pid,d)=>{if(role!=='admin'||CP.locked)return;const ids=seqList(gPlan[gi]).map(p=>p.pid),i=ids.indexOf(pid),j=i+d;if(i<0||j<0||j>=ids.length)return;
-  [ids[i],ids[j]]=[ids[j],ids[i]];const mine=new Set(ids);CP.seq=CP.seq.filter(x=>!mine.has(x)).concat(ids);saveCP();render()};
 $('lk').onclick=()=>{
-  if(!CP.locked){if(!confirm('Plan kilitlensin mi? Yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
-    CP.snap=JSON.stringify(planGlass().map(({all,stk,...g})=>g));CP.locked=true}
+  if(!CP.locked){if(!confirm('Plan kilitlensin mi? Şu anki yerleşim (elle yaptığınız değişiklikler dahil) sabitlenir; yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
+    const j=JSON.stringify(gPlan.map(({all,stk,...g})=>g));CP.snap=j;CP.man=j;CP.locked=true}
   else{if(role!=='admin')return toast('Kilidi sadece yönetici açabilir');
-    if(!confirm('Kilit açılırsa plan yeniden hesaplanır; kesime başlanmış kalıplarda yerleşim değişebilir. Devam edilsin mi?'))return;CP.locked=false;CP.snap=null}
+    if(!confirm('Kilit açılsın mı? Plan aynı yerleşimle kalır; parçalara tıklayıp değiştirebilirsiniz.'))return;CP.locked=false;CP.snap=null}
   saveCP();render()};
 $('lb').onclick=()=>{let t='';
   gPlan.forEach(g=>seqList(g).forEach((p,i)=>{const o=orders[p.id]||{},two=K(o)>1,s=p.lb.slice(-1);
-    t+=`<div class="lb"><b style="font-size:18px">${p.lb}</b> · sıra ${i+1}<br>${cm(p.a)}×${cm(p.b)} cm · ${g.t} mm ${g.tur}<br>${esc(o.m)} ${esc(o.a)}<br>${two?'Çift cam, '+s+' camı (eşi: '+p.lb.slice(0,-1)+(s==='A'?'B':'A')+')':'Tek cam'} · kalıp ${p.si+1}</div>`}));
+    t+=`<div class="lb"><b style="font-size:18px">${p.lb}</b> · sıra ${p.sq}<br>${cm(p.a)}×${cm(p.b)} cm · ${g.t} mm ${g.tur}<br>${esc(o.m)} ${esc(o.a)}<br>${two?'Çift cam, '+s+' camı (eşi: '+p.lb.slice(0,-1)+(s==='A'?'B':'A')+')':'Tek cam'} · kalıp ${p.si+1}</div>`}));
   if(!t)return toast('Etiket yok');$('lab').innerHTML=t;document.body.classList.add('pl');window.print();setTimeout(()=>document.body.classList.remove('pl'),500)};
 function listTable(g,gi,sl){
-  const ed=!CP.locked&&role==='admin';
-  let t=`<details open><summary><b>📋 Kesim listesi (${sl.length} parça)</b></summary><div class="tb"><table><tr><th>Sıra</th><th>Kimlik</th><th>Ölçü (cm)</th><th>Müşteri</th><th>Kalıp</th><th>Kesildi</th>${ed?'<th>Dahil</th><th>Sıra</th>':''}</tr>`;
-  sl.forEach((p,i)=>{const o=orders[p.id]||{},dn=CP.done[p.pid];
-    t+=`<tr class="${dn?'dn':''}"><td>${i+1}</td><td><b>${p.lb}</b></td><td>${cm(p.a)}×${cm(p.b)}</td><td>${esc(o.m)} <span class="mu">${esc(o.a)}</span></td><td>${p.si+1}</td><td><input type="checkbox" style="width:22px;min-height:22px" ${dn?'checked':''} onchange="cdone('${p.pid}')"></td>`+
-    (ed?`<td><input type="checkbox" style="width:22px;min-height:22px" checked onchange="cskip('${p.pid}')"></td><td><button class="btn btn-sm" onclick="cmv(${gi},'${p.pid}',-1)">▲</button> <button class="btn btn-sm" onclick="cmv(${gi},'${p.pid}',1)">▼</button></td>`:'')+'</tr>'});
-  if(ed)(g.ex||[]).forEach(p=>{const o=orders[p.id]||{};t+=`<tr class="dn"><td>-</td><td>${p.lb}</td><td>${cm(p.w)}×${cm(p.h)}</td><td>${esc(o.m)}</td><td>-</td><td></td><td><input type="checkbox" style="width:22px;min-height:22px" onchange="cskip('${p.pid}')"></td><td class="mu">plan dışı</td></tr>`});
+  const ed=!CP.locked&&role==='admin',auto=ed&&!CP.man,cols=5+(auto?1:0)+(ed?1:0);let last=-1;
+  let t=`<details open><summary><b>📋 Kesim listesi (${sl.length} parça)</b></summary><div class="tb"><table><tr><th>Sıra</th><th>Kimlik</th><th>Ölçü (cm)</th><th>Müşteri</th><th>Kesildi</th>${auto?'<th>Dahil</th>':''}${ed?'<th>Değiştir</th>':''}</tr>`;
+  sl.forEach(p=>{
+    if(p.si!==last){last=p.si;const sh=g.sheets[p.si];t+=`<tr><td colspan="${cols}" style="background:rgba(11,110,153,.14)"><b>${p.si+1}. kalıp</b> · ${cm(sh.SW)}×${cm(sh.SH)} cm${sh.artik?' (artık)':''}</td></tr>`}
+    const o=orders[p.id]||{},dn=CP.done[p.pid];
+    t+=`<tr class="${dn?'dn':''}"><td><b>${p.sq}</b></td><td><b>${p.lb}</b></td><td>${cm(p.a)}×${cm(p.b)}</td><td>${esc(o.m)} <span class="mu">${esc(o.a)}</span></td><td><input type="checkbox" style="width:22px;min-height:22px" ${dn?'checked':''} onchange="cdone('${p.pid}')"></td>`+
+    (auto?`<td><input type="checkbox" style="width:22px;min-height:22px" checked onchange="cskip('${p.pid}')"></td>`:'')+(ed?`<td><button class="btn btn-sm" onclick="swp(${gi},'${p.pid}')">🔁</button></td>`:'')+'</tr>'});
+  if(auto)(g.ex||[]).forEach(p=>{const o=orders[p.id]||{};t+=`<tr class="dn"><td>-</td><td>${p.lb}</td><td>${cm(p.w)}×${cm(p.h)}</td><td>${esc(o.m)}</td><td></td><td><input type="checkbox" style="width:22px;min-height:22px" onchange="cskip('${p.pid}')"></td><td class="mu">plan dışı</td></tr>`});
   return t+'</table></div></details>';
 }
+/* ---- Elle düzenleme: bir parçanın yerine başka ölçü koy ---- */
+const stripP=p=>{const{x,y,a,b,sw,sh,...r}=p;return r};
+const putP=(base,r)=>{const f=base.w<=r.w&&base.h<=r.h;return{...base,a:f?base.w:base.h,b:f?base.h:base.w,x:r.x,y:r.y,sw:r.w,sh:r.h}};
+const stripPlan=pl=>pl.map(({all,stk,...g})=>g);
+/* pidB=null → parçayı kalıp dışına al. Sonuç: {plan,out:'swap'|'free'|'bad'} ya da sığmıyorsa null */
+function editPlan(gi,pidA,pidB){
+  const plan=JSON.parse(JSON.stringify(gPlan)),g=plan[gi];g.bad=g.bad||[];g.sheets.forEach(s=>{s.fr=s.fr||[]});
+  const loc=pid=>{for(let si=0;si<g.sheets.length;si++){const i=g.sheets[si].p.findIndex(p=>p.pid===pid);if(i>=0)return{si,p:g.sheets[si].p[i]}}return null};
+  const A=loc(pidA);if(!A)return null;const touched=new Set([A.si]);
+  const slotA={x:A.p.x,y:A.p.y,w:ext(A.p).w,h:ext(A.p).h},baseA=stripP(A.p);
+  const del=(si,pid)=>{const arr=g.sheets[si].p;arr.splice(arr.findIndex(p=>p.pid===pid),1)};
+  let out;
+  if(pidB==null){del(A.si,pidA);g.sheets[A.si].fr.push(slotA);g.bad.push(baseA);out='bad'}
+  else{
+    const B=loc(pidB);let baseB,slotB=null;
+    if(B){baseB=stripP(B.p);slotB={x:B.p.x,y:B.p.y,w:ext(B.p).w,h:ext(B.p).h}}
+    else{const j=g.bad.findIndex(p=>p.pid===pidB);if(j<0)return null;baseB=g.bad[j]}
+    if(!fitsIn(baseB,slotA.w,slotA.h))return null;
+    del(A.si,pidA);if(B){del(B.si,pidB);touched.add(B.si)}
+    g.sheets[A.si].p.push(putP(baseB,slotA));if(!B)g.bad.splice(g.bad.findIndex(p=>p.pid===pidB),1);
+    if(B&&fitsIn(baseA,slotB.w,slotB.h)){g.sheets[B.si].p.push(putP(baseA,slotB));out='swap'}
+    else{
+      if(B)g.sheets[B.si].fr.push(slotB);
+      let bs=null,bi=-1,ba=Infinity;g.sheets.forEach((sh,si)=>sh.fr.forEach((r,i)=>{if(fitsIn(baseA,r.w,r.h)&&r.w*r.h<ba){ba=r.w*r.h;bs=si;bi=i}}));
+      if(bs!=null){const r=g.sheets[bs].fr.splice(bi,1)[0];g.sheets[bs].p.push(putP(baseA,r));touched.add(bs);out='free'}
+      else{g.bad.push(baseA);out='bad'}}
+  }
+  touched.forEach(si=>{const sh=g.sheets[si];sh.rem=gRem(sh.fr,minRem())});
+  return{plan,out};
+}
+let SWR=[];
+window.closeSw=()=>{const m=$('swm');if(m)m.remove()};
+window.swApply=i=>{const r=SWR[i];if(!r)return;CP.man=JSON.stringify(stripPlan(r.plan));saveCP();closeSw();render();toast('Değişiklik uygulandı')};
+window.swp=(gi,pid)=>{
+  if(role!=='admin')return toast('Değiştirmek için yönetici girişi gerekli');
+  if(CP.locked)return toast('Plan kilitli — önce 🔒 kilidi açın');
+  const g=gPlan[gi];if(!g)return;
+  const A=g.sheets.flatMap((s,si)=>s.p.map(p=>({p,si}))).find(x=>x.p.pid===pid);if(!A)return;
+  if(CP.done[pid])return toast('Bu parça "kesildi" işaretli, değiştirilemez');
+  const sl=ext(A.p),oo=orders[A.p.id]||{};
+  const cands=g.sheets.flatMap((s,si)=>s.p.filter(p=>p.pid!==pid&&!CP.done[p.pid]).map(p=>({p,si}))).concat((g.bad||[]).map(p=>({p,si:-1})));
+  SWR=[];
+  const rows=cands.filter(c=>fitsIn(c.p,sl.w,sl.h)).map(c=>({c,r:editPlan(gi,pid,c.p.pid)})).filter(x=>x.r).sort((x,y)=>y.c.p.w*y.c.p.h-x.c.p.w*x.c.p.h).slice(0,80);
+  const OT={swap:'↔ eski parça onun yerine geçer',free:'eski parça başka boş yere gider',bad:'⚠️ eski parça kalıp dışı kalır'};
+  const html=rows.map(x=>{SWR.push(x.r);const p=x.c.p,o=orders[p.id]||{};
+    return`<button class="btn" style="display:block;width:100%;text-align:left;margin:4px 0" onclick="swApply(${SWR.length-1})"><b>${cm(p.w)}×${cm(p.h)} cm</b> · ${p.lb||'#'+p.n} · ${esc(o.m)} · ${x.c.si>=0?(x.c.si+1)+'. kalıptan':'kalıp dışı'}<br><span class="mu">${OT[x.r.out]}</span></button>`}).join('')||'<p class="mu">Bu yere sığan başka parça yok.</p>';
+  SWR.push(editPlan(gi,pid,null));const outIdx=SWR.length-1;
+  closeSw();const m=document.createElement('div');m.id='swm';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px';
+  m.innerHTML=`<div style="background:#fff;color:#14202b;max-width:520px;width:100%;max-height:85vh;overflow:auto;border-radius:10px;padding:14px"><h3 style="margin:0 0 4px">${A.si+1}. kalıp · ${cm(A.p.a)}×${cm(A.p.b)} cm (${A.p.lb||'#'+A.p.n})</h3><p class="mu" style="margin:0 0 8px;color:#555">${esc(oo.m)} — bu yere hangi ölçü konsun? (Yalnızca bu alana sığanlar listelenir)</p>${html}<button class="btn btn-danger" style="display:block;width:100%;margin:8px 0 4px" onclick="swApply(${outIdx})">➖ Bu parçayı kalıptan çıkar (kalıp dışı)</button><button class="btn" style="display:block;width:100%" onclick="closeSw()">Kapat</button></div>`;
+  m.onclick=e=>{if(e.target===m)closeSw()};document.body.appendChild(m);
+};
+window.autoPlan=()=>{
+  if(CP.locked)return toast('Plan kilitli');
+  if(CP.man){if(role!=='admin')return toast('Yönetici girişi gerekli');if(!confirm('Elle yaptığınız değişiklikler silinip plan otomatik yeniden hesaplanacak. Devam edilsin mi?'))return;CP.man=null;saveCP()}
+  render();toast('Plan yenilendi')};
 function renderGlass(){
-  const lk=CP.locked&&CP.snap;gPlan=lk?JSON.parse(CP.snap):planGlass();let out='';
+  const lk=CP.locked&&CP.snap,man=!lk&&CP.man,canEd=role==='admin'&&!CP.locked;
+  gPlan=lk?JSON.parse(CP.snap):man?JSON.parse(CP.man):planGlass();let out='';
   $('lk').textContent=lk?'🔒 Kilitli':'🔓 Açık';
-  let pend=0;if(lk){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat(g.bad.map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
-  out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+(pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için yönetici kilidi açıp tekrar kilitlemeli.</span>`:''):'🔓 <b>Plan açık.</b> '+(role==='admin'?'Listeden parça dahil/hariç edebilir ve sıralayabilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
+  let pend=0;if(lk||man){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat((g.bad||[]).map(p=>p.id),(g.ex||[]).map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
+  const pw=pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için ${lk?'yönetici kilidi açıp ':''}"Planı yenile" ile otomatik plana dönüp tekrar kilitleyin.</span>`:'';
+  out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+pw
+    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya tıklayarak yerine başka ölçü koyabilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
+    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya tıklayıp yerine başka ölçü koyabilir, listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
   const fw=fewList(gPlan),fwn=fw.reduce((u,f)=>u+f.ps.length,0),fsig=fw.map(f=>f.t+f.tur+f.ps.map(p=>p.pid).join()).join('|');
   const cb=document.querySelector('.tab-btn[data-t="cam"]');if(cb)cb.textContent='🪟 Cam Kesim'+(fwn?' ⚠️'+fwn:'');
-  if(fwn){out+=`<div class="box" style="border:2px solid #D98E2B;background:rgba(217,142,43,.12)"><b>⚠️ Az parça kalan kalıplar var (${fwn} parça)</b><p class="mu" style="margin:6px 0">Bu parçalar için yeni levha açmadan önce <b>daha önce kesilmiş / depodaki artık camlardan bulunuz</b>. Bulursanız listeden "Dahil" kutusunu kaldırarak plandan çıkarabilirsiniz.</p>`+
+  if(fwn){out+=`<div class="box" style="border:2px solid #D98E2B;background:rgba(217,142,43,.12)"><b>⚠️ Az parça kalan kalıplar var (${fwn} parça)</b><p class="mu" style="margin:6px 0">Bu parçalar için yeni levha açmadan önce <b>daha önce kesilmiş / depodaki artık camlardan bulunuz</b>.</p>`+
     fw.map(f=>`<div class="ins"><b>${f.t} mm ${f.tur}</b> · ${f.sheet}. kalıp (${cm(f.SW)}×${cm(f.SH)} cm) → ${f.ps.map(p=>cm(p.a)+'×'+cm(p.b)+' cm <span class="mu">'+(p.lb||'#'+p.n)+'</span>').join(' · ')}</div>`).join('')+'</div>';
     if(fsig!==lastFew){lastFew=fsig;toast('⚠️ '+fwn+' parça için artık cam arayın')}}else lastFew='';
   gPlan.forEach((g,gi)=>{
-    const tot=g.sheets.reduce((s,x)=>s+x.SW*x.SH,0),used=g.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0),sl=seqList(g),sm={};sl.forEach((p,i)=>sm[p.pid]=i+1);
+    const tot=g.sheets.reduce((s,x)=>s+x.SW*x.SH,0),used=g.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0),sl=seqList(g),sm={};sl.forEach(p=>sm[p.pid]=p.sq);
     out+=`<div class="box"><h3>${g.t} mm ${g.tur} cam — ${g.sheets.length} kalıp</h3><p class="mu">${g.pcs} parça · toplam verim %${tot?(100*used/tot).toFixed(1):0}</p>`;
     if(g.noStock&&g.pcs)out+=`<p class="err">⚠️ Kalıplar sekmesinde ${g.t} mm ${g.tur} cam stoğu yok.</p>`;
-    else if(g.bad.length)out+=`<p class="err">⚠️ Kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' '+(p.lb||'#'+p.n)).join(', ')}</p>`;
-    if(!lk&&g.all)out+=cmpTable(g);
+    else if(g.bad.length)out+=`<p class="err">⚠️ Kalıp dışı / kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' '+(p.lb||'#'+p.n)).join(', ')}</p>`;
+    if(!lk&&!man&&g.all)out+=cmpTable(g);
     g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/55;
-      out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
+      out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem&&s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
       <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
-      s.p.map(p=>`<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${CP.done[p.pid]?'#BFE8C8':'#BFE3F2'}" stroke="${CP.done[p.pid]?'#2E8B57':'#0B6E99'}" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle" fill="#14202b">${sm[p.pid]}) ${cm(p.a)}×${cm(p.b)} ${p.lb||'#'+p.n}</text>`).join('')+'</svg>'});
+      s.p.map(p=>{const dn=CP.done[p.pid],e=ext(p);
+        return`<g ${canEd?`onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`:''}>`+((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'')+
+        `<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${dn?'#BFE8C8':'#BFE3F2'}" stroke="${dn?'#2E8B57':'#0B6E99'}" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b">${sm[p.pid]}. ${p.lb||'#'+p.n}</text><text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)}</text></g>`}).join('')+'</svg>'});
     out+=listTable(g,gi,sl)+'</div>'});
   $('o-cam').innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
 }
-
 /* ---------- Çıta kesim motoru (sadece çift cam) ---------- */
 function planCita(){
   const L=+settings.bl,k=+settings.kerf||0,d=+settings.ded||0,gr={};
@@ -416,11 +481,11 @@ $('dc').onclick=()=>{
     rems.forEach(r=>saveStock({id:'s'+rid(),w:r.w,h:r.h,t:r.t,tur:r.tur,q:1,artik:true}))}});
 };
 $('dt').onclick=()=>markDone('citaDone',new Set(tPlan.flatMap(g=>g.bars.flatMap(b=>b.p.map(p=>p.id)))));
-$('rc').onclick=$('rt').onclick=()=>{render();toast('Plan yenilendi')};
+$('rc').onclick=autoPlan;$('rt').onclick=()=>{render();toast('Plan yenilendi')};
 const who=id=>{const o=orders[id]||{};return[o.m||'',o.a||'']};
 function xl(rows,name){const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Plan');XLSX.writeFile(wb,name+'.xlsx')}
-$('xc').onclick=()=>{const r=[['Cam','Tür','Kalıp no','Kalıp (cm)','Sipariş','Müşteri','Apartman','En (cm)','Boy (cm)']];
-  gPlan.forEach(g=>g.sheets.forEach((s,i)=>s.p.forEach(p=>r.push([g.t+' mm',g.tur,i+1,cm(s.SW)+'x'+cm(s.SH),p.lb||'#'+p.n,...who(p.id),p.a/10,p.b/10]))));xl(r,'cam-kesim')};
+$('xc').onclick=()=>{const r=[['Cam','Tür','Kalıp no','Kesim sırası','Kalıp (cm)','Sipariş','Müşteri','Apartman','En (cm)','Boy (cm)']];
+  gPlan.forEach(g=>g.sheets.forEach((s,i)=>cutOrder(s.p).forEach((p,qi)=>r.push([g.t+' mm',g.tur,i+1,qi+1,cm(s.SW)+'x'+cm(s.SH),p.lb||'#'+p.n,...who(p.id),p.a/10,p.b/10]))));xl(r,'cam-kesim')};
 $('xt').onclick=()=>{const r=[['Çıta mm','Çıta no','Parça (cm)','Sipariş','Müşteri','Apartman','Fire (cm)']];
   tPlan.forEach(g=>g.bars.forEach((b,i)=>b.p.forEach(p=>r.push([g.c,i+1,p.v/10,'#'+p.n,...who(p.id),b.fire/10]))));xl(r,'cita-kesim')};
 
