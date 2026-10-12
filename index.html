@@ -16,22 +16,14 @@
 <button class="btn btn-primary btn-sm" id="auth-btn" onclick="toggleAuth()">Giriş Yap</button></div></header>
 <div class="nav-tabs">
 <button class="tab-btn active" data-t="siparis" data-r="staff">📝 Siparişler</button>
-<button class="tab-btn" data-t="fis" data-r="staff">📷 Fiş Oku</button>
+<button class="tab-btn" data-t="fis" data-r="staff">📷 Fiş / Sipariş Ekle</button>
 <button class="tab-btn" data-t="stok" data-r="staff">🧱 Kalıplar</button>
 <button class="tab-btn" data-t="cam" data-r="staff">🪟 Cam Kesim</button>
 <button class="tab-btn" data-t="cita" data-r="staff">📏 Çıta Kesim</button>
 <button class="tab-btn" data-t="montaj" data-r="staff">🔧 Montaj</button>
 <button class="tab-btn" data-t="ayar" data-r="admin">⚙️ Ayarlar</button></div>
 <div id="gate" class="gate"><h2>🔒 Giriş gerekli</h2><p>Siparişleri görmek için sağ üstten <b>Giriş Yap</b> deyin.</p></div>
-<div id="tab-siparis" class="tab-content active"><div class="box">
-<h3>Yeni sipariş (ölçüler cm)</h3>
-<div class="fr"><label>Kimin adına kesilecek (müşteri)<input id="f-m" list="dl-m" placeholder="Seçin veya yazın" autocomplete="off"></label><label>Kim istiyor<input id="f-r" list="dl-r" placeholder="İsteyen kişi" autocomplete="off"></label><label>Apartman / Adres<input id="f-a" list="dl-a" autocomplete="off"></label></div>
-<div class="fr"><label>En (cm)<input id="f-w" type="number" step="0.1" inputmode="decimal"></label><label>Boy (cm)<input id="f-h" type="number" step="0.1" inputmode="decimal"></label><label>Adet<input id="f-q" type="number" inputmode="numeric" value="1"></label></div>
-<div class="fr"><label>Tip<select id="f-k"><option value="2">Çift cam</option><option value="1">Tek cam</option></select></label>
-<label>Tür<select id="f-u"><option>Düz</option><option>Buzlu</option></select></label>
-<label>Cam (mm)<select id="f-t"><option>4</option><option>5</option><option>6</option></select></label>
-<label>Çıta (mm)<select id="f-c"><option>8</option><option>10</option><option selected>12</option><option>14</option><option>16</option><option>18</option><option>20</option></select></label></div>
-<button class="btn btn-primary" id="add">➕ Siparişi ekle</button></div>
+<div id="tab-siparis" class="tab-content active"><div class="box fr"><button class="btn btn-primary" onclick="openNew()">➕ Yeni fiş / sipariş ekle</button><span class="mu">Fiş yükleme ve elle sipariş girme <b>Fiş / Sipariş Ekle</b> sekmesinde birleşti. Eklenmiş bir fişi açıp satır ekleyebilir veya düzeltebilirsiniz (✎).</span></div>
 <div class="box"><div class="fr"><h3 style="margin:0">Sipariş listesi</h3>
 <select id="flt"><option value="bekleyen">Bekleyenler</option><option value="hepsi">Hepsi</option></select></div>
 <div id="olist"></div></div></div>
@@ -44,16 +36,17 @@
 <button class="btn btn-success" id="dt">✅ Bu planı kesildi işaretle</button>
 <button class="btn" id="xt">📥 Excel</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cita"></div></div>
 
-<div id="tab-fis" class="tab-content"><div class="box drop" id="g-drop"><h3>Fişten sipariş oku (Gemini)</h3>
+<div id="tab-fis" class="tab-content"><div class="box drop" id="g-drop"><h3>Fiş / sipariş ekle</h3>
+<div class="fr"><button class="btn btn-primary" onclick="newDraft()">✍️ Elle yeni fiş / sipariş</button><span class="mu">veya fiş yükleyin (okunan satırları sonra elle düzeltebilir, satır ekleyebilirsiniz):</span></div>
 <div class="fr"><label style="flex:2">Fiş fotoğrafı / PDF (birden fazla seçebilirsiniz)<input id="g-f" type="file" accept="image/*,application/pdf" multiple></label><button class="btn" onclick="gkey()">🔑 API anahtarı</button></div>
-<p class="mu" id="g-s">Yüklediğiniz <b>her fiş aşağıda ayrı bir açılır bölüm</b> olarak eklenir; sonradan yüklenen fişlerle karışmaz. Fotoğrafı bu kutuya sürükleyebilir veya yapıştırabilirsiniz (Ctrl+V). Okunan satırlar onaylamadan siparişe eklenmez.</p></div>
+<p class="mu" id="g-s">Her fiş (yüklenen ya da elle girilen) aşağıda <b>ayrı bir açılır bölüm</b> olur; birbirine karışmaz. Fotoğrafı bu kutuya sürükleyebilir veya yapıştırabilirsiniz (Ctrl+V). Hiçbir şey onaylamadan siparişe eklenmez.</p></div>
 <div id="g-list"></div></div>
 
-<div id="tab-stok" class="tab-content"><div class="box"><h3>Kalıp (levha) ekle — ölçüler cm</h3>
-<div class="fr"><label>En (cm)<input id="s-w" type="number" step="0.1" placeholder="321"></label><label>Boy (cm)<input id="s-h" type="number" step="0.1" placeholder="225"></label><label>Adet<input id="s-q" type="number" value="1"></label></div>
-<div class="fr"><label>Cam (mm)<select id="s-t"><option>4</option><option>5</option><option>6</option></select></label><label>Tür<select id="s-u"><option>Düz</option><option>Buzlu</option></select></label>
+<div id="tab-stok" class="tab-content"><div class="box"><h3 id="s-title">Kalıp (levha) ekle — ölçüler cm</h3>
+<div class="fr"><label>En (cm)<input id="s-w" type="number" step="0.1" inputmode="decimal" placeholder="321"></label><label>Boy (cm)<input id="s-h" type="number" step="0.1" inputmode="decimal" placeholder="225"></label><label>Adet<input id="s-q" type="number" inputmode="numeric" value="1"></label></div>
+<div class="fr"><label>Cam (mm) — yazın veya seçin<input id="s-t" type="number" step="0.5" list="dl-t" value="4"></label><label>Tür<select id="s-u"><option>Düz</option><option>Buzlu</option></select></label>
 <label>Cinsi<select id="s-r"><option value="0">Tam levha</option><option value="1">Artık parça</option></select></label></div>
-<button class="btn btn-primary" id="sadd">➕ Stoğa ekle</button></div>
+<button class="btn btn-primary" id="sadd">➕ Stoğa ekle</button> <button class="btn hide" id="scancel">✖ İptal</button></div>
 <div class="box"><h3>Stoktaki kalıplar</h3><div class="tb"><table id="slist"></table></div></div></div>
 <div id="tab-montaj" class="tab-content"><div class="box"><h3>Yeni montaj</h3>
 <label>Sipariş<select id="m-sip"></select></label>
@@ -71,7 +64,7 @@
 <label>"Az parça kaldı" uyarısı (en fazla kaç parça)<input id="s-few" type="number"></label></div>
 <p class="mu">Çıta çerçevesi = 2×(En−düşüm) + 2×(Boy−düşüm). Kalıp (levha) ölçüleri artık <b>Kalıplar</b> sekmesinden girilir.</p>
 <button class="btn btn-primary" id="ssave">💾 Kaydet</button></div></div>
-</div><datalist id="dl-m"></datalist><datalist id="dl-r"></datalist><datalist id="dl-a"></datalist><div id="lab"></div><div class="toast" id="toast"></div>
+</div><datalist id="dl-t"><option value="4"><option value="5"><option value="6"><option value="8"><option value="10"></datalist><datalist id="dl-c"><option value="8"><option value="10"><option value="12"><option value="14"><option value="16"><option value="18"><option value="20"></datalist><datalist id="dl-m"></datalist><datalist id="dl-r"></datalist><datalist id="dl-a"></datalist><div id="lab"></div><div class="toast" id="toast"></div>
 <script>
 const $=i=>document.getElementById(i);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -149,10 +142,6 @@ const nextNo=()=>Math.max(0,...Object.values(orders).map(o=>o.no||0))+1;
 function newOrder(d,no){const id='o'+rid();saveOrder({id,no,m:d.m||'',rq:d.rq||'',fid:d.fid||'',fl:d.fl||'',a:d.a||'',w:d.w,h:d.h,q:d.q,t:d.t,c:d.c,k:d.k,tur:d.tur,camDone:false,citaDone:false,fn:d.fn||'',ft:d.ft||'',nt:d.nt||'',ts:Date.now()})}
 
 /* ---------- Siparişler ---------- */
-$('add').onclick=()=>{const w=mm($('f-w').value),h=mm($('f-h').value),q=+$('f-q').value;
-  if(!(w>0&&h>0&&q>0))return toast('En, boy ve adet girin');const no=nextNo();
-  newOrder({m:$('f-m').value.trim(),rq:$('f-r').value.trim(),a:$('f-a').value.trim(),w,h,q,t:+$('f-t').value,c:+$('f-c').value,k:+$('f-k').value,tur:$('f-u').value},no);
-  ['f-w','f-h'].forEach(i=>$(i).value='');$('f-q').value=1;toast('Sipariş #'+no+' eklendi')};
 $('flt').onchange=render;
 window.tog=(id,k)=>{const o=orders[id];o[k]=!o[k];saveOrder(o)};
 window.del=id=>{if(confirm('Sipariş silinsin mi?'))delOrder(id)};
@@ -184,7 +173,7 @@ function renderOrders(){
     const title=(o0.fid||o0.fn)?'📄 '+esc(o0.fl||(o0.fn?'Fiş '+o0.fn:'Fiş')):'✍️ Elle eklenen';
     const meta=[o0.fn&&o0.fl?'Fiş no '+esc(o0.fn):'',dFmt(o0.ft),o0.a?esc(o0.a):'',o0.nt?esc(o0.nt):''].filter(Boolean).join(' · ');
     return`<details class="box" ${open?'open':''} style="padding:8px 12px"><summary onclick="OPEN[OG[${gi}]]=!this.parentNode.open" style="cursor:pointer"><b>${title}</b> · <b>${esc(o0.m)||'<span class="err">isim yok</span>'}</b>${o0.rq?' · isteyen: <b>'+esc(o0.rq)+'</b>':''}<br><span class="mu">${os.length} satır / ${adet} adet · Cam ${doneN}/${os.length}${meta?' · '+meta:''}</span></summary>
-    <div style="margin:6px 0"><button class="btn btn-sm" onclick="gedit(${gi})">✎ İsim / isteyen / adres</button> ${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="gdelg(${gi})">🗑 Fişi sil</button>`:''}</div>
+    <div style="margin:6px 0"><button class="btn btn-sm" onclick="gdraft(${gi})">✎ Fişi düzenle / satır ekle</button> ${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="gdelg(${gi})">🗑 Fişi sil</button>`:''}</div>
     <div class="tb"><table><tr><th>No</th><th>Ölçü (cm)</th><th>Adet</th><th>Cam</th><th>Çıta</th><th>Durum</th><th></th></tr>`+
     rows.map(o=>`<tr><td>#${o.no}</td><td>${cm(o.w)}×${cm(o.h)}</td><td>${o.q}</td><td>${o.t} mm ${TUR(o)}<br><span class="mu">${K(o)==2?'Çift':'Tek'}</span></td><td>${K(o)==2?o.c+' mm':'-'}</td>
     <td><span class="pill ${o.camDone?'d':''}" onclick="tog('${o.id}','camDone')">Cam ${o.camDone?'✔':'…'}</span>${K(o)==2?` <span class="pill ${o.citaDone?'d':''}" onclick="tog('${o.id}','citaDone')">Çıta ${o.citaDone?'✔':'…'}</span>`:''}</td>
@@ -193,17 +182,24 @@ function renderOrders(){
 }
 
 /* ---------- Kalıplar (stok) ---------- */
-$('sadd').onclick=()=>{const w=mm($('s-w').value),h=mm($('s-h').value),q=+$('s-q').value;
-  if(!(w>0&&h>0&&q>0))return toast('Ölçü ve adet girin');
-  saveStock({id:'s'+rid(),w:Math.max(w,h),h:Math.min(w,h),t:+$('s-t').value,tur:$('s-u').value,q,artik:$('s-r').value==='1'});
-  ['s-w','s-h'].forEach(i=>$(i).value='');toast('Kalıp eklendi')};
-window.sq=id=>{const s=stock[id],v=prompt('Yeni adet:',s.q);if(v!==null&&v!==''){s.q=Math.max(0,parseInt(v)||0);saveStock(s)}};
+let SE=null;
+const sReset=()=>{SE=null;['s-w','s-h'].forEach(i=>$(i).value='');$('s-q').value=1;$('s-t').value=4;$('s-u').value='Düz';$('s-r').value='0';$('sadd').textContent='➕ Stoğa ekle';$('s-title').textContent='Kalıp (levha) ekle — ölçüler cm';$('scancel').classList.add('hide')};
+$('sadd').onclick=()=>{const w=mm($('s-w').value),h=mm($('s-h').value),q=Math.floor(+$('s-q').value)||0,t=+$('s-t').value;
+  if(!(w>0&&h>0))return toast('En ve boyu girin');if(!(t>0))return toast('Cam kalınlığını (mm) girin');if(!(q>0||(SE&&q>=0)))return toast('Adet girin');
+  const rec={w:Math.max(w,h),h:Math.min(w,h),t,tur:$('s-u').value,q,artik:$('s-r').value==='1'};
+  if(SE&&stock[SE]){saveStock({...stock[SE],...rec});toast('Kalıp güncellendi')}
+  else{const same=Object.values(stock).find(x=>x.w===rec.w&&x.h===rec.h&&+x.t===t&&(x.tur||'Düz')===rec.tur&&!!x.artik===rec.artik);
+    if(same){saveStock({...same,q:(+same.q||0)+q});toast('Aynı kalıp vardı, adedi artırıldı')}else{saveStock({id:'s'+rid(),...rec});toast('Kalıp eklendi')}}
+  sReset()};
+window.sedit=id=>{const x=stock[id];if(!x)return;SE=id;$('s-w').value=x.w/10;$('s-h').value=x.h/10;$('s-q').value=x.q;$('s-t').value=x.t;$('s-u').value=x.tur||'Düz';$('s-r').value=x.artik?'1':'0';
+  $('sadd').textContent='💾 Güncelle';$('s-title').textContent='Kalıbı düzenle — ölçüler cm';$('scancel').classList.remove('hide');window.scrollTo({top:0,behavior:'smooth'})};
+$('scancel').onclick=sReset;
 window.sdel=id=>{if(confirm('Kalıp silinsin mi?'))delStock(id)};
 function renderStock(){
   const rows=Object.values(stock).sort((a,b)=>a.t-b.t||(a.tur||'').localeCompare(b.tur||'')||(a.artik?1:0)-(b.artik?1:0)||b.w*b.h-a.w*a.h);
   $('slist').innerHTML='<tr><th>Cam</th><th>Kalıp (cm)</th><th>Cinsi</th><th>Adet</th><th></th></tr>'+
   (rows.map(s=>`<tr><td>${s.t} mm ${s.tur||'Düz'}</td><td>${cm(s.w)}×${cm(s.h)}</td><td>${s.artik?'Artık':'Tam levha'}</td><td>${s.q}</td>
-  <td><button class="btn btn-sm" onclick="sq('${s.id}')">✎</button> ${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="sdel('${s.id}')">🗑</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">Henüz kalıp girilmedi. Üstteki formdan ekleyin.</td></tr>');
+  <td><button class="btn btn-sm" onclick="sedit('${s.id}')">✎ Düzenle</button> ${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="sdel('${s.id}')">🗑</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">Henüz kalıp girilmedi. Üstteki formdan ekleyin.</td></tr>');
 }
 
 /* ---------- Fiş okuma (Gemini) ---------- */
@@ -241,46 +237,77 @@ const dz=$('g-drop'),okF=f=>f&&(/^image\//.test(f.type)||f.type==='application/p
 dz.addEventListener('drop',async e=>{const fs=[...e.dataTransfer.files].filter(okF);if(!fs.length)return toast('Sadece fotoğraf veya PDF bırakın');for(const f of fs)await readFis(f)});
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
 document.addEventListener('paste',async e=>{if(!$('tab-fis').classList.contains('active'))return;const fs=[...(e.clipboardData&&e.clipboardData.files||[])].filter(okF);for(const f of fs)await readFis(f)});
+let FOCUS=null;
+const blankRow=p=>({en:'',boy:'',adet:1,k:p?p.k:2,t:p?p.t:4,c:p?p.c:12,tur:p?p.tur:'Düz',ok:true});
 const optH=(o,v)=>o.map(x=>`<option value="${x[0]}"${String(x[0])===String(v)?' selected':''}>${x[1]}</option>`).join('');
 const selR=(id,i,k,o,v)=>`<select onchange="gset('${id}',${i},'${k}',this.value)">${optH(o,v)}</select>`;
-const inpR=(id,i,k,v,w)=>`<input style="width:${w}px;min-height:36px!important" value="${esc(v)}" oninput="gq('${id}',${i},'${k}',this.value)" onchange="gset('${id}',${i},'${k}',this.value)">`;
+const inpR=(id,i,k,v,w,extra)=>`<input style="width:${w}px;min-height:36px!important" value="${esc(v)}" oninput="gq('${id}',${i},'${k}',this.value)" onchange="gset('${id}',${i},'${k}',this.value)" ${extra||''}>`;
+const numR=(id,i,k,v,w,lst)=>`<input type="number" step="0.5" list="${lst}" style="width:${w}px;min-height:36px!important" value="${esc(v)}" oninput="gq('${id}',${i},'${k}',this.value)" onchange="gset('${id}',${i},'${k}',this.value)">`;
 const ALL=(id,k,lab,o)=>`<label>${lab}<select onchange="gall('${id}','${k}',this.value);this.value=''"><option value="">— tümüne uygula —</option>${o.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('')}</select></label>`;
-const CITA=[8,10,12,14,16,18,20].map(x=>[x,x+' mm']);
+const ALLN=(id,k,lab,lst)=>`<label>${lab}<input type="number" step="0.5" list="${lst}" placeholder="yaz/seç → tümüne" onchange="gall('${id}','${k}',this.value);this.value=''"></label>`;
 window.dtog=(id,el)=>{const d=dget(id);if(d){d.open=!el.parentNode.open;saveDR()}};
 window.dset=(id,k,v)=>{const d=dget(id);if(d){d[k]=v;saveDR()}};
 window.gq=(id,i,k,v)=>{const d=dget(id);if(d&&d.rows[i]){d.rows[i][k]=v;saveDR()}};
 window.gset=(id,i,k,v)=>{const d=dget(id);if(!d||!d.rows[i])return;d.rows[i][k]=['k','t','c'].includes(k)?+v:v;d.rows[i].ok=true;saveDR();renderG()};
-window.gall=(id,k,v)=>{const d=dget(id);if(!d||v==='')return;d.rows.forEach(r=>{r[k]=['k','t','c'].includes(k)?+v:v});saveDR();renderG();toast('Tüm satırlara uygulandı')};
-window.gdel=(id,i)=>{const d=dget(id);if(d){d.rows.splice(i,1);saveDR();renderG()}};
-window.gadd=id=>{const d=dget(id);if(d){d.rows.push({en:'',boy:'',adet:1,k:2,t:4,c:12,tur:'Düz',ok:true});saveDR();renderG()}};
-window.gdrop=id=>{if(confirm('Bu fiş taslağı silinsin mi? (Siparişlere eklenmedi)')){DR=DR.filter(d=>d.id!==id);saveDR();renderG()}};
+window.gall=(id,k,v)=>{const d=dget(id);if(!d||v==='')return;if(['t','c'].includes(k)&&!(+v>0))return;d.rows.forEach(r=>{r[k]=['k','t','c'].includes(k)?+v:v});saveDR();renderG();toast('Tüm satırlara uygulandı')};
+window.gdel=(id,i)=>{const d=dget(id);if(!d)return;if(d.rows[i]&&d.rows[i].oid&&role!=='admin')return toast('Kayıtlı satırı silmek için yönetici girişi gerekli');d.rows.splice(i,1);saveDR();renderG()};
+window.gadd=id=>{const d=dget(id);if(d){d.rows.push(blankRow(d.rows[d.rows.length-1]));saveDR();FOCUS=id;renderG()}};
+window.gdrop=id=>{const d=dget(id);if(d&&confirm(d.edit?'Düzenleme iptal edilsin mi? (Kayıtlı siparişler değişmez)':'Bu fiş taslağı silinsin mi? (Siparişlere eklenmedi)')){DR=DR.filter(x=>x.id!==id);saveDR();renderG()}};
+window.newDraft=()=>{const d={id:'d'+rid(),fl:'Elle girilen sipariş',st:'ready',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[blankRow()],open:true};DR.unshift(d);saveDR();FOCUS=d.id;renderG();const el=document.querySelector('[data-d="'+d.id+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
+window.openNew=()=>{document.querySelector('.tab-btn[data-t="fis"]').click();newDraft()};
+window.gdraft=i=>{
+  const key=OG[i],all=list().filter(o=>gkeyOf(o)===key).sort((a,b)=>(a.no||0)-(b.no||0));if(!all.length)return;
+  let d=DR.find(x=>x.edit&&x.key===key);
+  if(!d){const o0=all[0];d={id:'e'+rid(),edit:true,key,fid:o0.fid||'',fl:o0.fl||(o0.fn?'Fiş '+o0.fn:'Elle eklenen'),st:'ready',m:o0.m||'',rq:o0.rq||'',a:o0.a||'',no:o0.fn||'',d:o0.ft||'',n:o0.nt||'',open:true,oids:all.map(o=>o.id),
+    rows:all.map(o=>({oid:o.id,no:o.no,en:o.w/10,boy:o.h/10,adet:o.q,k:K(o),t:o.t,c:o.c||12,tur:TUR(o),ok:true}))};DR.unshift(d)}
+  d.open=true;saveDR();document.querySelector('.tab-btn[data-t="fis"]').click();renderG();
+  const el=document.querySelector('[data-d="'+d.id+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+};
 function draftHTML(d){
   const chk=d.rows.filter(r=>!r.ok).length,combos=[...new Set(d.rows.map(r=>`${r.t} mm ${r.tur} ${r.k==2?'çift ('+r.c+')':'tek'}`))];
-  const stat=d.st==='reading'?' · ⏳ okunuyor…':d.st==='error'?' · '+esc(d.msg):chk?` · <span class="err">⚠️ ${chk} satır kontrol edilmeli</span>`:' · ✅ hazır';
-  let h=`<details class="box" ${d.open?'open':''}><summary onclick="dtog('${d.id}',this)" style="cursor:pointer"><b>📄 ${esc(d.fl)}</b> · <b>${esc(d.m)||'<span class="err">kimin adına?</span>'}</b>${d.rq?' · isteyen: <b>'+esc(d.rq)+'</b>':''} · ${d.rows.length} satır${stat}${combos.length&&combos.length<=3?'<br><span class="mu">Cam: '+combos.join(' · ')+'</span>':''}</summary>`;
+  const stat=d.st==='reading'?' · ⏳ okunuyor…':d.st==='error'?' · '+esc(d.msg):chk?` · <span class="err">⚠️ ${chk} satır kontrol edilmeli</span>`:'';
+  let h=`<details class="box" data-d="${d.id}" ${d.open?'open':''}><summary onclick="dtog('${d.id}',this)" style="cursor:pointer"><b>${d.edit?'✎ Düzenleniyor: ':'📄 '}${esc(d.fl)}</b> · <b>${esc(d.m)||'<span class="err">kimin adına?</span>'}</b>${d.rq?' · isteyen: <b>'+esc(d.rq)+'</b>':''} · ${d.rows.length} satır${stat}${combos.length&&combos.length<=3?'<br><span class="mu">Cam: '+combos.join(' · ')+'</span>':''}</summary>`;
   if(d.st==='reading')return h+'<p class="mu">Fiş okunuyor, lütfen bekleyin…</p></details>';
   h+=`<div class="fr"><label>Kimin adına kesilecek<input value="${esc(d.m)}" list="dl-m" autocomplete="off" placeholder="Seçin veya yazın" oninput="dset('${d.id}','m',this.value)"></label><label>Kim istiyor<input value="${esc(d.rq)}" list="dl-r" autocomplete="off" placeholder="İsteyen kişi" oninput="dset('${d.id}','rq',this.value)"></label><label>Apartman / Adres<input value="${esc(d.a)}" list="dl-a" autocomplete="off" oninput="dset('${d.id}','a',this.value)"></label></div>
   <div class="fr"><label>Fiş no<input value="${esc(d.no)}" oninput="dset('${d.id}','no',this.value)"></label><label>Fiş tarihi<input type="date" value="${esc(d.d)}" onchange="dset('${d.id}','d',this.value)"></label><label style="flex:2">Fiş notu<input value="${esc(d.n)}" oninput="dset('${d.id}','n',this.value)"></label></div>
-  <div class="fr">${ALL(d.id,'k','Tip (hepsi)',[[2,'Çift cam'],[1,'Tek cam']])}${ALL(d.id,'t','Cam kalınlığı (hepsi)',[[4,'4 mm'],[5,'5 mm'],[6,'6 mm']])}${ALL(d.id,'tur','Tür (hepsi)',[['Düz','Düz'],['Buzlu','Buzlu']])}${ALL(d.id,'c','Çıta (hepsi)',CITA)}</div>
-  <p class="mu">Kırmızı satırlar okunamayan / emin olunmayan yerler; fişle karşılaştırın. Adet = çift cam adedi.</p>
-  <div class="tb"><table><tr><th>En</th><th>Boy</th><th>Adet</th><th>Tip</th><th>Cam</th><th>Çıta</th><th>Tür</th><th></th></tr>`+
-  d.rows.map((r,i)=>`<tr style="${r.ok?'':'background:rgba(217,108,108,.18)'}"><td>${inpR(d.id,i,'en',r.en,70)}</td><td>${inpR(d.id,i,'boy',r.boy,70)}</td><td>${inpR(d.id,i,'adet',r.adet,50)}</td><td>${selR(d.id,i,'k',[[2,'Çift'],[1,'Tek']],r.k)}</td><td>${selR(d.id,i,'t',[[4,'4'],[5,'5'],[6,'6']],r.t)}</td><td>${r.k==2?selR(d.id,i,'c',CITA,r.c):'-'}</td><td>${selR(d.id,i,'tur',[['Düz','Düz'],['Buzlu','Buzlu']],r.tur)}</td><td><button class="btn btn-danger btn-sm" onclick="gdel('${d.id}',${i})">✕</button></td></tr>`).join('')+
-  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">✅ Bu fişi siparişlere ekle</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">🗑 Bu fişi sil</button></div></details>`;
+  <div class="fr">${ALL(d.id,'k','Tip (hepsi)',[[2,'Çift cam'],[1,'Tek cam']])}${ALLN(d.id,'t','Cam mm (hepsi)','dl-t')}${ALL(d.id,'tur','Tür (hepsi)',[['Düz','Düz'],['Buzlu','Buzlu']])}${ALLN(d.id,'c','Çıta mm (hepsi)','dl-c')}</div>
+  <p class="mu">Ölçüler cm. ${d.edit?'Bu fiş zaten siparişlerde; kaydedince değişiklikler siparişlere işlenir. Ölçü/cam değişen satırların "kesildi" işareti sıfırlanır.':'Kırmızı satırlar okunamayan / emin olunmayan yerler; fişle karşılaştırın.'} Adet = çift cam adedi. Adet kutusunda Enter yeni satır açar.</p>
+  <div class="tb"><table><tr><th>No</th><th>En</th><th>Boy</th><th>Adet</th><th>Tip</th><th>Cam</th><th>Çıta</th><th>Tür</th><th></th></tr>`+
+  d.rows.map((r,i)=>`<tr style="${r.ok?'':'background:rgba(217,108,108,.18)'}"><td class="mu">${r.oid?'#'+(r.no||''):'+'}</td><td>${inpR(d.id,i,'en',r.en,70)}</td><td>${inpR(d.id,i,'boy',r.boy,70)}</td><td>${inpR(d.id,i,'adet',r.adet,50,`onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();gadd('${d.id}')}"`)}</td><td>${selR(d.id,i,'k',[[2,'Çift'],[1,'Tek']],r.k)}</td><td>${numR(d.id,i,'t',r.t,56,'dl-t')}</td><td>${r.k==2?numR(d.id,i,'c',r.c,56,'dl-c'):'-'}</td><td>${selR(d.id,i,'tur',[['Düz','Düz'],['Buzlu','Buzlu']],r.tur)}</td><td><button class="btn btn-danger btn-sm" onclick="gdel('${d.id}',${i})">✕</button></td></tr>`).join('')+
+  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">${d.edit?'💾 Değişiklikleri kaydet':'✅ Bu fişi siparişlere ekle'}</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">${d.edit?'✖ İptal':'🗑 Bu fişi sil'}</button></div></details>`;
   return h;
 }
 function renderG(){
-  $('g-list').innerHTML=DR.map(draftHTML).join('')||'<div class="box mu">Henüz fiş yüklenmedi.</div>';
-  const rd=DR.filter(d=>d.st==='reading').length;$('g-s').dataset.n=rd;
+  $('g-list').innerHTML=DR.map(draftHTML).join('')||'<div class="box mu">Henüz fiş yok. "Elle yeni fiş" ile başlayın veya fiş yükleyin.</div>';
+  if(FOCUS){const el=document.querySelector(`[data-d="${FOCUS}"] tr:last-child input`);if(el)el.focus();FOCUS=null}
 }
 window.gok=id=>{
   const d=dget(id);if(!d)return;
+  d.rows=d.rows.filter(r=>r.oid||String(r.en).trim()!==''||String(r.boy).trim()!=='');saveDR();
   if(!d.m.trim())return toast('Önce "Kimin adına kesilecek" kısmını seçin veya yazın');
-  if(!d.rows.length)return toast('Bu fişte satır yok');
-  const bad=d.rows.findIndex(r=>!(mm(r.en)>0&&mm(r.boy)>0&&+r.adet>0));if(bad>=0)return toast((bad+1)+'. satırda en, boy veya adet eksik');
-  const fid='f'+rid();let no=nextNo();
-  d.rows.forEach(r=>newOrder({m:d.m.trim(),rq:d.rq.trim(),a:d.a.trim(),w:mm(r.en),h:mm(r.boy),q:+r.adet,t:r.t,c:r.k==2?r.c:0,k:r.k,tur:r.tur,fn:d.no.trim(),ft:d.d,nt:d.n.trim(),fid,fl:d.fl},no++));
-  OPEN[fid]=true;Object.keys(OPEN).forEach(k=>{if(k!==fid)OPEN[k]=false});
-  toast(d.rows.length+' sipariş eklendi');DR=DR.filter(x=>x.id!==id);saveDR();renderG();
+  if(!d.rows.length&&!d.edit)return toast('Bu fişte satır yok');
+  const bad=d.rows.findIndex(r=>!(mm(r.en)>0&&mm(r.boy)>0&&+r.adet>0&&+r.t>0));if(bad>=0)return toast((bad+1)+'. satırda en, boy, adet veya cam kalınlığı eksik');
+  const meta={m:d.m.trim(),rq:d.rq.trim(),a:d.a.trim(),fn:d.no.trim(),ft:d.d,nt:d.n.trim()};
+  const norm=r=>{const k=+r.k;return{w:mm(r.en),h:mm(r.boy),q:+r.adet,k,t:+r.t,c:k==2?+r.c||12:0,tur:r.tur}};
+  let no=nextNo();
+  if(!d.edit){
+    const fid='f'+rid();d.rows.forEach(r=>newOrder({...meta,...norm(r),fid,fl:d.fl},no++));
+    Object.keys(OPEN).forEach(k=>OPEN[k]=false);OPEN[fid]=true;toast(d.rows.length+' sipariş eklendi');
+  }else{
+    const removed=(d.oids||[]).filter(oid=>orders[oid]&&!d.rows.some(r=>r.oid===oid));
+    if(removed.length){if(role!=='admin')return toast('Satır silmek için yönetici girişi gerekli');if(!confirm(removed.length+' kayıtlı satır silinecek. Devam edilsin mi?'))return}
+    const resets=d.rows.filter(r=>{const o=r.oid&&orders[r.oid];if(!o||!o.camDone)return false;const n=norm(r);return o.w!==n.w||o.h!==n.h||+o.q!==n.q||+o.t!==n.t||K(o)!==n.k||TUR(o)!==n.tur});
+    if(resets.length&&!confirm(resets.length+' satır zaten "cam kesildi" işaretli ve değişiyor; işareti sıfırlanacak. Devam edilsin mi?'))return;
+    let firstO=null;
+    d.rows.forEach(r=>{const o=r.oid&&orders[r.oid],n=norm(r);
+      if(o){const camCh=o.w!==n.w||o.h!==n.h||+o.q!==n.q||+o.t!==n.t||K(o)!==n.k||TUR(o)!==n.tur,citaCh=o.w!==n.w||o.h!==n.h||+o.q!==n.q||K(o)!==n.k||(+o.c||0)!==n.c;
+        Object.assign(o,meta,n);if(camCh)o.camDone=false;if(citaCh)o.citaDone=false;saveOrder(o);firstO=firstO||o}
+      else newOrder({...meta,...n,fid:d.fid||'',fl:d.fl||''},no++)});
+    removed.forEach(oid=>delOrder(oid));
+    Object.keys(OPEN).forEach(k=>OPEN[k]=false);OPEN[firstO?gkeyOf(firstO):d.key]=true;
+    toast('Fiş güncellendi');
+  }
+  DR=DR.filter(x=>x.id!==id);saveDR();renderG();
   document.querySelector('.tab-btn[data-t="siparis"]').click();
 };
 renderG();
