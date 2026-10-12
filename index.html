@@ -45,8 +45,9 @@
 
 <div id="tab-fis" class="tab-content"><div class="box"><h3>Fişten sipariş oku (Gemini)</h3>
 <div class="fr"><label>Müşteri<input id="g-m"></label><label>Apartman / Adres<input id="g-a"></label></div>
-<div class="fr"><label style="flex:2">Fiş fotoğrafı<input id="g-f" type="file" accept="image/*"></label><button class="btn" onclick="gkey()">🔑 API anahtarı</button></div>
-<p class="mu" id="g-s">Fişin net bir fotoğrafını seçin. Okunan satırlar onaylamadan siparişe eklenmez.</p></div>
+<div class="fr"><label>Fiş no<input id="g-no"></label><label>Fiş tarihi<input id="g-d" type="date"></label><label style="flex:2">Fiş notu<input id="g-n"></label></div>
+<div class="fr"><label style="flex:2">Fiş fotoğrafı<input id="g-f" type="file" accept="image/*,application/pdf"></label><button class="btn" onclick="gkey()">🔑 API anahtarı</button></div>
+<p class="mu" id="g-s">Fişin net bir fotoğrafını ya da PDF dosyasını seçin. Okunan satırlar onaylamadan siparişe eklenmez.</p></div>
 <div class="box hide" id="g-box"><h3>Okunan satırlar — kontrol edin</h3><p class="mu">Kırmızı satırlar Gemini'nin emin olmadığı yerler; fişle karşılaştırın. Adet = çift cam adedi (çift camda her adet için 2 kat cam kesilir).</p>
 <div class="tb"><table id="g-t"></table></div><br><button class="btn btn-success" id="g-ok">✅ Siparişlere ekle</button></div></div>
 <div id="tab-stok" class="tab-content"><div class="box"><h3>Kalıp (levha) ekle — ölçüler cm</h3>
@@ -141,7 +142,7 @@ const cm=v=>(v/10).toFixed(1).replace(/\.0$/,'').replace('.',',');
 const K=o=>o.k||2,TUR=o=>o.tur||'Düz',rid=()=>Date.now()+Math.random().toString(36).slice(2,6);
 const list=()=>Object.values(orders).sort((a,b)=>(a.no||0)-(b.no||0));
 const nextNo=()=>Math.max(0,...Object.values(orders).map(o=>o.no||0))+1;
-function newOrder(d,no){const id='o'+rid();saveOrder({id,no,m:d.m||'',a:d.a||'',w:d.w,h:d.h,q:d.q,t:d.t,c:d.c,k:d.k,tur:d.tur,camDone:false,citaDone:false,ts:Date.now()})}
+function newOrder(d,no){const id='o'+rid();saveOrder({id,no,m:d.m||'',a:d.a||'',w:d.w,h:d.h,q:d.q,t:d.t,c:d.c,k:d.k,tur:d.tur,camDone:false,citaDone:false,fn:d.fn||'',ft:d.ft||'',nt:d.nt||'',ts:Date.now()})}
 
 /* ---------- Siparişler ---------- */
 $('add').onclick=()=>{const w=mm($('f-w').value),h=mm($('f-h').value),q=+$('f-q').value;
@@ -154,7 +155,7 @@ window.del=id=>{if(confirm('Sipariş silinsin mi?'))delOrder(id)};
 function renderOrders(){
   const f=$('flt').value,rows=list().filter(o=>f==='hepsi'||!o.camDone||(K(o)==2&&!o.citaDone));
   $('olist').innerHTML='<tr><th>No</th><th>Müşteri / Apartman</th><th>Ölçü (cm)</th><th>Adet</th><th>Cam</th><th>Çıta</th><th>Durum</th><th></th></tr>'+
-  (rows.map(o=>`<tr><td>#${o.no}</td><td>${esc(o.m)}<br><span class="mu">${esc(o.a)}</span></td><td>${cm(o.w)}×${cm(o.h)}</td><td>${o.q}</td><td>${o.t} mm ${TUR(o)}<br><span class="mu">${K(o)==2?'Çift':'Tek'}</span></td><td>${K(o)==2?o.c+' mm':'-'}</td>
+  (rows.map(o=>`<tr><td>#${o.no}</td><td>${esc(o.m)}<br><span class="mu">${esc(o.a)}</span>${o.fn||o.ft||o.nt?`<br><span class="mu">${[o.fn?'Fiş '+esc(o.fn):'',o.ft?o.ft.split('-').reverse().join('.'):'',esc(o.nt||'')].filter(Boolean).join(' · ')}</span>`:''}</td><td>${cm(o.w)}×${cm(o.h)}</td><td>${o.q}</td><td>${o.t} mm ${TUR(o)}<br><span class="mu">${K(o)==2?'Çift':'Tek'}</span></td><td>${K(o)==2?o.c+' mm':'-'}</td>
   <td><span class="pill ${o.camDone?'d':''}" onclick="tog('${o.id}','camDone')">Cam ${o.camDone?'✔':'…'}</span>${K(o)==2?` <span class="pill ${o.citaDone?'d':''}" onclick="tog('${o.id}','citaDone')">Çıta ${o.citaDone?'✔':'…'}</span>`:''}</td>
   <td>${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="del('${o.id}')">🗑</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mu">Sipariş yok.</td></tr>');
 }
@@ -176,18 +177,22 @@ function renderStock(){
 /* ---------- Fiş okuma (Gemini) ---------- */
 let gRows=[];
 window.gkey=()=>{const k=prompt('Google API anahtarını yapıştırın:',localStorage.getItem('gemini_api_key')||'');if(k)localStorage.setItem('gemini_api_key',k.trim())};
+function fileB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>res(String(r.result).split(',')[1]);r.readAsDataURL(f)})}
 function shrink(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const i=new Image();i.onerror=rej;i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85).split(',')[1])};i.src=r.result};r.readAsDataURL(f)})}
-const GP=`Bu, el yazısıyla yazılmış bir cam sipariş fişi. Ölçüler SANTİMETRE (ondalık virgül veya nokta olabilir). Başlıklar cam yapısını verir: "4+12+4" = iki kat 4 mm cam + 12 mm çıta = ÇİFT CAM (kat:2, cam:4, cita:12). "tek" yazan gruplar TEK CAM (kat:1, cita:0). "buzlu" yazan gruplar tur:"Buzlu", diğerleri tur:"Düz". Satırlar "sıra no - en x boy = adet" biçimindedir. SADECE geçerli JSON dizisi ver: [{"grup":"başlık","kat":2,"cam":4,"cita":12,"tur":"Düz","parcalar":[{"no":"1","en":190.2,"boy":75.3,"adet":2,"emin":true}]}]. Sayıları cm olarak ve nokta ondalıklı yaz. Adet yazılmamışsa adet:null. Okuyamadığın, silinmiş/üstü çizili veya emin olmadığın satırlarda ve başlığı belirsiz gruplarda emin:false yaz. Ölçü uydurma.`;
+const GP=`Bu, el yazısıyla yazılmış bir cam sipariş fişi. Ölçüler SANTİMETRE (ondalık virgül veya nokta olabilir). Başlıklar cam yapısını verir: "4+12+4" = iki kat 4 mm cam + 12 mm çıta = ÇİFT CAM (kat:2, cam:4, cita:12). "tek" yazan gruplar TEK CAM (kat:1, cita:0). "buzlu" yazan gruplar tur:"Buzlu", diğerleri tur:"Düz". Satırlar "sıra no - en x boy = adet" biçimindedir. SADECE geçerli bir JSON nesnesi ver: {"musteri":null,"siparis_no":null,"tarih":null,"notlar":null,"gruplar":[{"grup":"başlık","kat":2,"cam":4,"cita":12,"tur":"Düz","parcalar":[{"no":"1","en":190.2,"boy":75.3,"adet":2,"emin":true}]}]}. musteri, siparis_no ve notlar fişte yazıyorsa metin olarak yaz, yoksa null; tarih YYYY-MM-DD biçiminde, yoksa null. Sayıları cm olarak ve nokta ondalıklı yaz. Adet yazılmamışsa adet:null. Okuyamadığın, silinmiş/üstü çizili veya emin olmadığın satırlarda ve başlığı belirsiz gruplarda emin:false yaz. Ölçü uydurma.`;
 $('g-f').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;let key=localStorage.getItem('gemini_api_key');
   if(!key){gkey();key=localStorage.getItem('gemini_api_key');if(!key)return}
   $('g-s').textContent='⏳ Fiş okunuyor...';
   try{
-    const b64=await shrink(f);
+    const pdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name);
+    if(pdf&&f.size>15*1024*1024)throw new Error('PDF çok büyük (en fazla 15 MB).');
+    const b64=pdf?await fileB64(f):await shrink(f);
     const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[{text:GP},{inlineData:{mimeType:'image/jpeg',data:b64}}]}],generationConfig:{responseMimeType:'application/json'}})});
+      body:JSON.stringify({contents:[{parts:[{text:GP},{inlineData:{mimeType:pdf?'application/pdf':'image/jpeg',data:b64}}]}],generationConfig:{responseMimeType:'application/json'}})});
     const d=await r.json();if(d.error)throw new Error(d.error.message);
-    const gs=JSON.parse(d.candidates[0].content.parts[0].text.replace(/```(?:json)?/gi,'').trim());
+    const raw=JSON.parse(d.candidates[0].content.parts[0].text.replace(/```(?:json)?/gi,'').trim()),gs=Array.isArray(raw)?raw:(raw.gruplar||[]);
+    if(!Array.isArray(raw)){if(raw.musteri&&!$('g-m').value)$('g-m').value=raw.musteri;if(raw.siparis_no)$('g-no').value=String(raw.siparis_no);if(/^\d{4}-\d{2}-\d{2}$/.test(raw.tarih||''))$('g-d').value=raw.tarih;if(raw.notlar)$('g-n').value=raw.notlar}
     gRows=[];gs.forEach(g=>(g.parcalar||[]).forEach(p=>gRows.push({en:p.en,boy:p.boy,adet:p.adet==null?'':p.adet,k:+g.kat===1?1:2,t:+g.cam||4,c:+g.cita||12,tur:/buz/i.test(g.tur)?'Buzlu':'Düz',ok:p.emin!==false&&p.adet!=null})));
     renderG();$('g-s').textContent='✅ '+gRows.length+' satır okundu. Kırmızı satırları fişle karşılaştırıp düzeltin, sonra onaylayın.';
   }catch(err){$('g-s').textContent='❌ '+(/api key/i.test(err.message)?'API anahtarı geçersiz.':err.message)}finally{e.target.value=''}};
@@ -202,8 +207,8 @@ function renderG(){
 }
 $('g-ok').onclick=()=>{
   const bad=gRows.findIndex(r=>!(mm(r.en)>0&&mm(r.boy)>0&&+r.adet>0));if(bad>=0)return toast((bad+1)+'. satırda en, boy veya adet eksik');
-  let no=nextNo();gRows.forEach(r=>newOrder({m:$('g-m').value.trim(),a:$('g-a').value.trim(),w:mm(r.en),h:mm(r.boy),q:+r.adet,t:r.t,c:r.k==2?r.c:0,k:r.k,tur:r.tur},no++));
-  toast(gRows.length+' sipariş eklendi');gRows=[];renderG();document.querySelector('.tab-btn[data-t="siparis"]').click();
+  let no=nextNo();gRows.forEach(r=>newOrder({m:$('g-m').value.trim(),a:$('g-a').value.trim(),w:mm(r.en),h:mm(r.boy),q:+r.adet,t:r.t,c:r.k==2?r.c:0,k:r.k,tur:r.tur,fn:$('g-no').value.trim(),ft:$('g-d').value,nt:$('g-n').value.trim()},no++));
+  toast(gRows.length+' sipariş eklendi');['g-m','g-a','g-no','g-d','g-n'].forEach(i=>$(i).value='');gRows=[];renderG();document.querySelector('.tab-btn[data-t="siparis"]').click();
 };
 
 /* ---------- Cam kesim motoru: stoktaki kalıplardan, artık öncelikli, giyotin şerit ---------- */
@@ -236,8 +241,17 @@ function planGlass(){
       const done=new Set(pick.S.p.map(p=>p.u));rem=rem.filter(p=>!done.has(p.u));pick.s.left--;
       sheets.push({...pick.S,SW:pick.s.w,SH:pick.s.h,stockId:pick.s.id,artik:pick.s.artik,rem:remnants(pick.S,pick.s.w,pick.s.h,k)});
     }
-    return{t,tur,sheets,bad:bad.concat(rem),pcs,noStock:!av.length};
+    return{t,tur,sheets,bad:bad.concat(rem),pcs,noStock:!av.length,all:gr[key],stk:Object.values(stock).filter(s=>s.t==t&&(s.tur||'Düz')==tur)};
   });
+}
+function cmpTable(g){
+  const k=+settings.kerf||0;
+  const rows=g.stk.filter(s=>s.q>0).map(s=>{const r=pack(g.all,s.w,s.h,k),n=r.sheets.length,area=s.w*s.h,used=r.sheets.reduce((a,x)=>a+x.p.reduce((u,p)=>u+p.a*p.b,0),0);
+    return{s,n,fits:!r.bad.length&&n>0,fire:n?100*(1-used/(n*area)):100,ok:n<=s.q&&!r.bad.length}}).sort((a,b)=>b.fits-a.fits||a.fire-b.fire);
+  if(!rows.length)return'';
+  const best=rows.find(r=>r.ok);
+  return `<details><summary class="mu">📊 Kalıp karşılaştırması: tüm parçalar tek tip kalıptan kesilseydi</summary><div class="tb"><table><tr><th>Kalıp</th><th>Ölçü (cm)</th><th>Gereken adet</th><th>Fire %</th><th>Stok</th><th>Öneri</th></tr>`+
+  rows.map(r=>`<tr><td>${r.s.artik?'Artık':'Tam levha'}</td><td>${cm(r.s.w)}×${cm(r.s.h)}</td><td>${r.fits?r.n:'-'}</td><td>${r.fits?r.fire.toFixed(1):'-'}</td><td>${r.s.q}</td><td>${!r.fits?'❌ Sığmayan parça var':r===best?'✅ En uygun':r.ok?'Uygun':'⚠️ Stok yetmez'}</td></tr>`).join('')+`</table></div></details>`;
 }
 function renderGlass(){
   gPlan=planGlass();let out='';
@@ -246,6 +260,7 @@ function renderGlass(){
     out+=`<div class="box"><h3>${g.t} mm ${g.tur} cam — ${g.sheets.length} kalıp</h3><p class="mu">${g.pcs} parça · toplam verim %${tot?(100*used/tot).toFixed(1):0}</p>`;
     if(g.noStock)out+=`<p class="err">⚠️ Kalıplar sekmesinde ${g.t} mm ${g.tur} cam stoğu yok.</p>`;
     else if(g.bad.length)out+=`<p class="err">⚠️ Kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' #'+p.n).join(', ')}</p>`;
+    out+=cmpTable(g);
     g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/50;
       out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
       <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
