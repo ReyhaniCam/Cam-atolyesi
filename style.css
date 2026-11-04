@@ -601,6 +601,8 @@
 .mu{color:var(--steel);font-size:13px}.err{color:var(--rust)}.ok{color:var(--success);font-weight:600}
 .pill{padding:2px 8px;border-radius:12px;font-size:12px;background:var(--steel-line)}.pill.d{background:var(--success);color:#fff}
 svg.pl{width:100%;height:auto;border:1px solid var(--steel-line);border-radius:6px;background:var(--bg);margin:4px 0}
+.pl g { cursor: grab; }
+.pl g:active { cursor: grabbing; }
 .bar{display:flex;height:28px;border:1px solid var(--steel-line);border-radius:4px;overflow:hidden;margin:4px 0 10px}
 .bar div{font-size:11px;display:flex;align-items:center;justify-content:center;border-right:1px solid #fff;background:#BFE3F2;overflow:hidden}.bar .wa{background:#F3D9D4}
 .ins{font-size:13px;margin:2px 0 8px;line-height:1.5}
