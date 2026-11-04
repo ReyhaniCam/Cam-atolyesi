@@ -2,7 +2,7 @@
 <html lang="tr"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Reyhani Yapı — Cam Kesim &amp; Montaj</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪟</text></svg>">
 <link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -79,7 +79,7 @@
 </div><datalist id="dl-t"><option value="4"><option value="5"><option value="6"><option value="8"><option value="10"></datalist><datalist id="dl-c"><option value="8"><option value="10"><option value="12"><option value="14"><option value="16"><option value="18"><option value="20"></datalist><datalist id="dl-m"></datalist><datalist id="dl-r"></datalist><datalist id="dl-a"></datalist><div id="lab"></div><div class="toast" id="toast"></div>
 <script>
 const $=i=>document.getElementById(i);
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s != null ? s : '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const DEF={kerf:3,bl:6000,ded:12,rem:30,few:2};
 let orders={},stock={},settings={...DEF},db=null,gPlan=[],tPlan=[];
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)};
@@ -360,7 +360,7 @@ function bestFill(orders,SW,SH,k,mr){
 }
 function mkOrders(items,att,rnd){
   const KF={area:p=>p.w*p.h,long:p=>Math.max(p.w,p.h)*1e5+p.w*p.h/1e3,short:p=>Math.min(p.w,p.h)*1e5+p.w*p.h/1e3,per:p=>p.w+p.h,w:p=>p.w*1e5+p.h,h:p=>p.h*1e5+p.w};
-  const srt=(f,noise)=>items.map((p,i)=>({p,i,v:f(p)*(noise?.7+.6*rnd():1)})).sort((x,y)=>y.v-x.v||x.i-y.i).map(x=>x.p);
+  const srt=(f,noise)=>items.map((p,i)=>({p,i,v:f(p)*(noise ? 0.7+0.6*rnd() : 1)})).sort((x,y)=>y.v-x.v||x.i-y.i).map(x=>x.p);
   if(att===0)return['area','long','short'].map(n=>srt(KF[n]));
   if(att===1)return['per','w','h'].map(n=>srt(KF[n]));
   return[KF.area,KF.long,KF.short].map(f=>srt(f,true));
@@ -375,7 +375,7 @@ function planAttempt(pcs,av0,k,att){
     if(!cand.length)break;
     const one=cand.filter(c=>c.all);let pick;
     if(one.length)pick=one.sort((x,y)=>(y.s.artik?1:0)-(x.s.artik?1:0)||x.s.w*x.s.h-y.s.w*y.s.h)[0];
-    else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
+    else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik ? 0.08 : 0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik ? 0.08 : 0)))[0];
     pick.s.left--;rem=pick.res.left;
 
     const placed = pick.res.placed;
