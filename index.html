@@ -329,7 +329,6 @@ const minRem=()=>Math.max(0,(settings.rem==null?30:+settings.rem)*10);
 const fewN=()=>Math.max(0,settings.few==null?2:+settings.few);
 function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}}
 const fitsIn=(p,W,H)=>(p.w<=W&&p.h<=H)||(p.h<=W&&p.w<=H);
-/* Tek levhaya, verilen sırayla parça yerleştirir (serbest dikdörtgen + giyotin bölme, 90° döndürme serbest) */
 function gFill(items,SW,SH,k,fit,split){
   const free=[{x:0,y:0,w:SW,h:SH}],placed=[],left=[];
   for(const p of items){
@@ -349,7 +348,6 @@ function gFill(items,SW,SH,k,fit,split){
   return{placed,left,free};
 }
 const gRem=(free,mr)=>free.filter(r=>Math.min(r.w,r.h)>=mr&&Math.min(r.w,r.h)>0).map(r=>[Math.max(r.w,r.h),Math.min(r.w,r.h)]);
-/* Birden çok sıralama × yerleştirme × bölme kuralını dener, en iyi tek levha dolumunu döndürür */
 function bestFill(orders,SW,SH,k,mr){
   let best=null;
   for(const ord of orders)for(const f of FITS)for(const sp of SPLITS){
@@ -366,7 +364,6 @@ function mkOrders(items,att,rnd){
   if(att===1)return['per','w','h'].map(n=>srt(KF[n]));
   return[KF.area,KF.long,KF.short].map(f=>srt(f,true));
 }
-/* Bir deneme: levha levha, her seferinde en uygun kalıbı seçip en iyi dolumu yapar */
 function planAttempt(pcs,av0,k,att){
   const mr=minRem(),rnd=rng(9157+att*7919),av=av0.map(s=>({...s})),sheets=[];let rem=pcs.slice();
   while(rem.length){
@@ -380,7 +377,6 @@ function planAttempt(pcs,av0,k,att){
     else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
     pick.s.left--;rem=pick.res.left;
 
-    // SOL VE ÜST KENARA DAYAMA
     const placed = pick.res.placed;
     if (placed.length > 0) {
       const oX = 0;
@@ -403,7 +399,6 @@ function planSet(pcs,av,k){
   let best=null;for(let att=0;att<8;att++){const r=planAttempt(pcs,av,k,att);if(better(r,best))best=r}
   if(PC.size>30)PC.clear();PC.set(key,best);return best;
 }
-/* tek tip kalıptan (karşılaştırma tablosu için) */
 function pack(ps,SW,SH,k){
   const mr=minRem(),bad=[],sheets=[];let rem=ps.filter(p=>{if(fitsIn(p,SW,SH))return true;bad.push(p);return false});
   while(rem.length){const res=bestFill(mkOrders(rem,0,null),SW,SH,k,mr);if(!res){bad.push(...rem);break}sheets.push({p:res.placed});rem=res.left}
@@ -771,7 +766,7 @@ $('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf')
 const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
 $('m-sip').onchange=()=>{const o=orders[$('m-sip'].value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
 $('madd').onclick=()=>{
-  const m={id:'m'+Date.now(),sip:$('m-sip').value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
+  const m={id:'m'+Date.now(),sip:$('m-sip'].value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
   if(!m.m&&!m.a)return toast('Müşteri veya adres girin');if(!m.d)return toast('Montaj tarihi seçin');
   saveMontaj(m);['m-m','m-a','m-e','m-n'].forEach(i=>$(i).value='');$('m-sip').value='';toast('Montaj eklendi');
 };
