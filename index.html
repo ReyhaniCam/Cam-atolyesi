@@ -380,7 +380,7 @@ function planAttempt(pcs,av0,k,att){
     else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
     pick.s.left--;rem=pick.res.left;
 
-    // SOL VE ÜST KENARA DAYAMA (Sol ve sağdaki yaklaşık 10cm'lik simetrik boşlukların/kayıpların önlenmesi):
+    // SOL VE ÜST KENARA DAYAMA
     const placed = pick.res.placed;
     if (placed.length > 0) {
       const oX = 0;
@@ -429,7 +429,6 @@ function planGlass(){
     }
   });
 
-  // Ölçülere göre grupları sırala (büyükten küçüğe alan sıralaması)
   const sortedGroups = Array.from(dimMap.entries()).sort((a, b) => (b[1].w * b[1].h) - (a[1].w * a[1].h));
   
   const getGroupLetter = (index) => {
@@ -447,7 +446,7 @@ function planGlass(){
     const letter = getGroupLetter(groupIdx);
     group.items.forEach((item, itemIdx) => {
       const seq = itemIdx + 1;
-      const lb = `${letter}${seq}`; // örn: a1, a2, b1, b2, b3, b4
+      const lb = `${letter}${seq}`;
       const pc = { w: group.w, h: group.h, id: item.id, n: item.n, pid: item.pid, lb };
       const key = group.t + '|' + group.tur;
       if (CP.skip[item.pid]) {
@@ -467,7 +466,6 @@ function planGlass(){
     return{t,tur,sheets:r.sheets,bad:bad.concat(r.rem),pcs,noStock:!av.length,ex:exm[key]||[],all:gk,stk:Object.values(stock).filter(s=>s.t==t&&(s.tur||'Düz')==tur)};
   });
 }
-/* "Az parça kalan" kalıplar: yeni levha açmadan önce eski artıklardan aranmalı */
 function fewList(plan){
   const n=fewN(),out=[];if(n<1)return out;
   plan.forEach(g=>g.sheets.forEach((s,i)=>{if(s.artik)return;const ps=s.p.filter(p=>!CP.done[p.pid]);
@@ -484,7 +482,6 @@ function cmpTable(g){
   return `<details><summary class="mu">📊 Kalıp karşılaştırması: tüm parçalar tek tip kalıptan kesilseydi</summary><div class="tb"><table><tr><th>Kalıp</th><th>Ölçü (cm)</th><th>Gereken adet</th><th>Fire %</th><th>Stok</th><th>Öneri</th></tr>`+
   rows.map(r=>`<tr><td>${r.s.artik?'Artık':'Tam levha'}</td><td>${cm(r.s.w)}×${cm(r.s.h)}</td><td>${r.fits?r.n:'-'}</td><td>${r.fits?r.fire.toFixed(1):'-'}</td><td>${r.s.q}</td><td>${!r.fits?'❌ Sığmayan parça var':r===best?'✅ En uygun':r.ok?'Uygun':'⚠️ Stok yetmez'}</td></tr>`).join('')+`</table></div></details>`;
 }
-/* Sistemin kendi kesim sırası: önce levhayı boydan boya bölen kesimler, sonra şeritler içinde soldan sağa */
 const ext=p=>({w:p.sw||p.a,h:p.sh||p.b});
 function cutOrder(P){
   if(P.length<2)return P.slice();
@@ -543,11 +540,9 @@ function onDrag(e) {
   let newX = Math.round(origX + dx);
   let newY = Math.round(origY + dy);
 
-  // Kalıp dışına taşma kontrolü
   newX = Math.max(0, Math.min(newX, sheet.SW - p.a));
   newY = Math.max(0, Math.min(newY, sheet.SH - p.b));
 
-  // Diğer parçalarla çakışma (üst üste binme) kontrolü
   const hasCollision = sheet.p.some(other => {
     if (other.pid === p.pid) return false;
     return (
@@ -570,7 +565,6 @@ function endDrag(e) {
   window.removeEventListener('mousemove', onDrag);
   window.removeEventListener('mouseup', endDrag);
 
-  // Bırakılan konumu state'e (CP.man) kaydet
   if (!CP.man) {
     CP.man = JSON.stringify(stripPlan(gPlan));
   } else {
@@ -633,7 +627,6 @@ function listTable(g,gi,sl){
   if(auto)(g.ex||[]).forEach(p=>{const o=orders[p.id]||{};t+=`<tr class="dn"><td>-</td><td>${p.lb}</td><td>${cm(p.w)}×${cm(p.h)}</td><td>${esc(o.m)}</td><td></td><td><input type="checkbox" style="width:22px;min-height:22px" onchange="cskip('${p.pid}')"></td><td class="mu">plan dışı</td></tr>`});
   return t+'</table></div></details>';
 }
-/* ---- Elle düzenleme: bir parçanın yerine başka ölçü koy ---- */
 const stripP=p=>{const{x,y,a,b,sw,sh,...r}=p;return r};
 const putP=(base,r)=>{const f=base.w<=r.w&&base.h<=r.h;return{...base,a:f?base.w:base.h,b:f?base.h:base.w,x:r.x,y:r.y,sw:r.w,sh:r.h}};
 const stripPlan=pl=>pl.map(({all,stk,...g})=>g);
@@ -708,14 +701,25 @@ function renderGlass(){
     const tot=g.sheets.reduce((s,x)=>s+x.SW*x.SH,0),used=g.sheets.reduce((s,x)=>s+x.p.reduce((u,p)=>u+p.a*p.b,0),0),sl=seqList(g),sm={};sl.forEach(p=>sm[p.pid]=p.sq);
     out+=`<div class="box"><h3>${g.t} mm ${g.tur} cam — ${g.sheets.length} kalıp</h3><p class="mu">${g.pcs} parça · toplam verim %${tot?(100*used/tot).toFixed(1):0}</p>`;
     if(g.noStock&&g.pcs)out+=`<p class="err">⚠️ Kalıplar sekmesinde ${g.t} mm ${g.tur} cam stoğu yok.</p>`;
-    else if(g.bad.length)out+=`<p class="err">⚠️ Kalıp dışı / kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmedi): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' '+(p.lb||'#'+p.n)).join(', ')}</p>`;
+    else if(g.bad.length)out+=`<p class="err">⚠️ Kalıp dışı / kesilemeyen ${g.bad.length} parça (uygun kalıp yok ya da stok yetmez): ${g.bad.map(p=>cm(p.w)+'×'+cm(p.h)+' '+(p.lb||'#'+p.n)).join(', ')}</p>`;
     if(!lk&&!man&&g.all)out+=cmpTable(g);
     g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/55;
       out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem&&s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
       <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
-      s.p.map(p=>{const dn=CP.done[p.pid],e=ext(p);
-        return`<g data-pid="${p.pid}" ${!CP.locked?`onmousedown="startDrag(event, ${gi}, ${i}, '${p.pid}')" style="cursor:grab"`: canEd?`onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`:''}>`+((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'')+
-        `<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${dn?'#BFE8C8':'#BFE3F2'}" stroke="${dn?'#2E8B57':'#0B6E99'}" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b">${sm[p.pid]}. ${p.lb||'#'+p.n}</text><text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)}</text></g>`}).join('')+'</svg>'});
+      s.p.map(p=>{
+        const dn=CP.done[p.pid],e=ext(p);
+        let interactionAttr = '';
+        if(!CP.locked){
+          interactionAttr = `onmousedown="startDrag(event, ${gi}, ${i}, '${p.pid}')" style="cursor:grab"`;
+        } else if(canEd){
+          interactionAttr = `onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`;
+        }
+        return `<g data-pid="${p.pid}" ${interactionAttr}>` +
+          ((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'') +
+          `<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${dn?'#BFE8C8':'#BFE3F2'}" stroke="${dn?'#2E8B57':'#0B6E99'}" stroke-width="3"/>` +
+          `<text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b">${sm[p.pid]}. ${p.lb||'#'+p.n}</text>` +
+          `<text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)}</text></g>`;
+      }).join('')+'</svg>'});
     out+=listTable(g,gi,sl)+'</div>'});
   $('o-cam').innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
 }
