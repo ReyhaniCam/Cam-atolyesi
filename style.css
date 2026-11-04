@@ -178,9 +178,6 @@
   .tag-title{font-weight:800;font-size:16px;overflow-wrap:anywhere;color:var(--charcoal);}
   .tag-code{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--steel);word-break:break-all;line-height:1.6;font-weight:500;}
 
-  /* ÜRÜN GRUPLAMA (aynı ana isme sahip, ölçüsü farklı ürünlerin açılıp kapanan
-     tek başlık altında toplandığı kart) — Ana Stok Izgarası ve Kataloglar >
-     Hızlı Ara'da aynı sınıflar kullanılır. */
   .group-card{
     background:var(--paper);border:1px solid var(--steel-line);border-radius:var(--radius);padding:18px;
     box-shadow:var(--shadow);transition:transform .15s ease, box-shadow .15s;
@@ -352,12 +349,6 @@
 /* ============ DASHBOARD / KARŞILAMA PANELİ ============ */
 .dashboard-container {
   padding: 20px 16px 40px;
-  /* Not: Önceden burada 12sn'de bir döngüye giren bir arkaplan animasyonu vardı.
-     Bu animasyon, üstündeki blur'lu (backdrop-filter) kartlarla birleşince,
-     tarayıcının saniyede 60 kez tüm arkaplanı yeniden bulanıklaştırmasına
-     sebep oluyordu — bu sayfa artık VARSAYILAN karşılama ekranı olduğu için
-     bu sürekli yük ciddi bir yavaşlama kaynağıydı. Statik gradient'e çevirdik,
-     görünüm hemen hemen aynı ama artık sıfır ekstra işlemci/GPU maliyeti var. */
   background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0EA5E9 100%);
   border-radius: var(--radius);
   min-height: calc(100vh - 160px);
@@ -544,8 +535,7 @@
 .cmdk-item-actions button{ font-size:11px; padding:5px 9px; border-radius:6px; border:1px solid var(--steel-line); background:#fff; cursor:pointer; }
 .cmdk-empty{ text-align:center; padding:30px 10px; color:var(--steel); font-size:13px; }
 
-
-/* ===== TEMİZ / ERİŞİLEBİLİR GÖRSEL TEMA — İŞLEVSEL KODDAN AYRI ===== */
+/* ===== TEMİZ / ERİŞİLEBİLİR GÖRSEL TEMA ===== */
 :root{
     --bg:#EEF2F6; --paper:#FFFFFF; --charcoal:#1F2D3D; --steel:#536476;
     --steel-line:#D5DEE7; --safety:#B9D7E7; --rust:#D96C6C; --success:#4FAF82;
@@ -617,3 +607,38 @@ svg.pl{width:100%;height:auto;border:1px solid var(--steel-line);border-radius:6
 @media print{header,.nav-tabs,.fr button,.tab-content:not(.active){display:none!important}}
 
 .hide{display:none!important}.gate{text-align:center;padding:60px 20px;color:var(--steel)}.gate h2{color:var(--charcoal)}#sync{font-size:11px;padding:4px 10px}
+
+/* ============ FİŞ/SİPARİŞ DETAILS (AKORDİYON) ANİMASYONLARI ============ */
+details.box {
+  transition: all 0.3s ease;
+}
+details.box summary {
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+  padding-right: 24px;
+  transition: color 0.2s ease;
+}
+details.box summary::-webkit-details-marker {
+  display: none;
+}
+details.box summary::after {
+  content: '▼';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--steel);
+  transition: transform 0.3s ease;
+}
+details.box[open] summary::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+details.box[open] > div, details.box[open] > p {
+  animation: slideDown 0.35s ease-in-out;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
