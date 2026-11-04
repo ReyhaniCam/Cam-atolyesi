@@ -323,7 +323,7 @@ window.gok=id=>{
 };
 renderG();
 
-/* ---------- Cam kesim motoru v2: gerçek giyotin kesim, çoklu strateji araması, artık öncelikli ---------- */
+/* ---------- Cam kesim motoru v2 ---------- */
 const FITS=['baf','bssf','blsf'],SPLITS=['sas','las','maxa','mina'];
 const minRem=()=>Math.max(0,(settings.rem==null?30:+settings.rem)*10);
 const fewN=()=>Math.max(0,settings.few==null?2:+settings.few);
@@ -489,13 +489,19 @@ function seqList(g){return g.sheets.flatMap((s,si)=>cutOrder(s.p).map((p,i)=>({.
 window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
 window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
 
-/* ---------- Manuel Sürükle & Bırak (Drag & Drop) Fonksiyonları ---------- */
+/* ---------- Manuel Sürükle & Bırak (Dataset Tabanlı Güvenli Yapı) ---------- */
 let draggingPiece = null;
 let dragContext = null;
 
-function startDrag(e, gi, si, pid) {
+function startDrag(e) {
   if (CP.locked) return;
   e.preventDefault();
+  const gEl = e.target.closest('g[data-pid]');
+  if (!gEl) return;
+  const gi = parseInt(gEl.dataset.gi, 10);
+  const si = parseInt(gEl.dataset.si, 10);
+  const pid = gEl.dataset.pid;
+
   const g = gPlan[gi];
   if (!g) return;
   const sheet = g.sheets[si];
@@ -601,6 +607,12 @@ function updatePieceDOM(ctx) {
   }
 }
 
+window.swpClick = function(el) {
+  const gi = parseInt(el.dataset.gi, 10);
+  const pid = el.dataset.pid;
+  swp(gi, pid);
+};
+
 $('lk').onclick=()=>{
   if(!CP.locked){if(!confirm('Plan kilitlensin mi? Şu anki yerleşim (elle yaptığınız değişiklikler dahil) sabitlenir; yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
     const j=JSON.stringify(gPlan.map(({all,stk,...g})=>g));CP.snap=j;CP.man=j;CP.locked=true}
@@ -618,7 +630,7 @@ function listTable(g,gi,sl){
     if(p.si!==last){last=p.si;const sh=g.sheets[p.si];t+=`<tr><td colspan="${cols}" style="background:rgba(11,110,153,.14)"><b>${p.si+1}. kalıp</b> · ${cm(sh.SW)}×${cm(sh.SH)} cm${sh.artik?' (artık)':''}</td></tr>`}
     const o=orders[p.id]||{},dn=CP.done[p.pid];
     t+=`<tr class="${dn?'dn':''}"><td><b>${p.sq}</b></td><td><b>${p.lb}</b></td><td>${cm(p.a)}×${cm(p.b)}</td><td>${esc(o.m)} <span class="mu">${esc(o.a)}</span>${o.rq?'<br><span class="mu">İsteyen: '+esc(o.rq)+'</span>':''}</td><td><input type="checkbox" style="width:22px;min-height:22px" ${dn?'checked':''} onchange="cdone('${p.pid}')"></td>`+
-    (auto?`<td><input type="checkbox" style="width:22px;min-height:22px" checked onchange="cskip('${p.pid}')"></td>`:'')+(ed?`<td><button class="btn btn-sm" onclick="swp(${gi},'${p.pid}')">🔁</button></td>`:'')+'</tr>'});
+    (auto?`<td><input type="checkbox" style="width:22px;min-height:22px" checked onchange="cskip('${p.pid}')"></td>`:'')+(ed?`<td><button class="btn btn-sm" data-gi="${gi}" data-pid="${p.pid}" onclick="swpClick(this)">🔁</button></td>`:'')+'</tr>'});
   if(auto)(g.ex||[]).forEach(p=>{const o=orders[p.id]||{};t+=`<tr class="dn"><td>-</td><td>${p.lb}</td><td>${cm(p.w)}×${cm(p.h)}</td><td>${esc(o.m)}</td><td></td><td><input type="checkbox" style="width:22px;min-height:22px" onchange="cskip('${p.pid}')"></td><td class="mu">plan dışı</td></tr>`});
   return t+'</table></div></details>';
 }
@@ -705,9 +717,9 @@ function renderGlass(){
         const dn=CP.done[p.pid],e=ext(p);
         let interactionAttr = '';
         if(!CP.locked){
-          interactionAttr = `onmousedown="startDrag(event, ${gi}, ${i}, '${p.pid}')" style="cursor:grab"`;
+          interactionAttr = `data-gi="${gi}" data-si="${i}" data-pid="${p.pid}" onmousedown="startDrag(event)" style="cursor:grab"`;
         } else if(canEd){
-          interactionAttr = `onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`;
+          interactionAttr = `data-gi="${gi}" data-pid="${p.pid}" onclick="swpClick(this)" style="cursor:pointer"`;
         }
         return `<g data-pid="${p.pid}" ${interactionAttr}>` +
           ((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'') +
@@ -766,7 +778,7 @@ $('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf')
 const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
 $('m-sip').onchange=()=>{const o=orders[$('m-sip'].value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
 $('madd').onclick=()=>{
-  const m={id:'m'+Date.now(),sip:$('m-sip'].value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
+  const m={id:'m'+Date.now(),sip:$('m-sip').value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
   if(!m.m&&!m.a)return toast('Müşteri veya adres girin');if(!m.d)return toast('Montaj tarihi seçin');
   saveMontaj(m);['m-m','m-a','m-e','m-n'].forEach(i=>$(i).value='');$('m-sip').value='';toast('Montaj eklendi');
 };
