@@ -180,7 +180,7 @@ function renderOrders(){
   const out=OG.map((k,gi)=>{
     const os=G[k],o0=os[0],rows=os.filter(o=>f==='hepsi'||!o.camDone||(K(o)==2&&!o.citaDone));
     if(!rows.length)return'';
-    const open=k in OPEN?OPEN[k]:gi===0,doneN=os.filter(o=>o.camDone).length,adet=os.reduce((u,o)=>u+(+o.q||0),0);
+    const open=k in OPEN?OPEN[k]:false,doneN=os.filter(o=>o.camDone).length,adet=os.reduce((u,o)=>u+(+o.q||0),0);
     const title=(o0.fid||o0.fn)?'📄 '+esc(o0.fl||(o0.fn?'Fiş '+o0.fn:'Fiş')):'✍️ Elle eklenen';
     const meta=[o0.fn&&o0.fl?'Fiş no '+esc(o0.fn):'',dFmt(o0.ft),o0.a?esc(o0.a):'',o0.nt?esc(o0.nt):''].filter(Boolean).join(' · ');
     return`<details class="box" ${open?'open':''} style="padding:8px 12px"><summary onclick="OPEN[OG[${gi}]]=!this.parentNode.open" style="cursor:pointer"><b>${title}</b> · <b>${esc(o0.m)||'<span class="err">isim yok</span>'}</b>${o0.rq?' · isteyen: <b>'+esc(o0.rq)+'</b>':''}<br><span class="mu">${os.length} satır / ${adet} adet · Cam ${doneN}/${os.length}${meta?' · '+meta:''}</span></summary>
@@ -380,13 +380,11 @@ function planAttempt(pcs,av0,k,att){
     else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
     pick.s.left--;rem=pick.res.left;
 
-    // SIMETRI (MERKEZLEME) VE FIREYI DISA ATMA:
+    // SOL VE ÜST KENARA DAYAMA (Sol ve sağdaki yaklaşık 10cm'lik simetrik boşlukların/kayıpların önlenmesi):
     const placed = pick.res.placed;
     if (placed.length > 0) {
-      const maxX = Math.max(...placed.map(p => p.x + p.a));
-      const maxY = Math.max(...placed.map(p => p.y + p.b));
-      const oX = (pick.s.w - maxX) / 2;
-      const oY = (pick.s.h - maxY) / 2;
+      const oX = 0;
+      const oY = 0;
       placed.forEach(p => { p.x += oX; p.y += oY; });
       pick.res.free.forEach(r => { r.x += oX; r.y += oY; });
     }
@@ -412,17 +410,54 @@ function pack(ps,SW,SH,k){
   return{sheets,bad};
 }
 function planGlass(){
-  const k=+settings.kerf||0,gr={};
-  const exm={};
+  const k=+settings.kerf||0;
   const inc50 = $('c-lt50') ? $('c-lt50').checked : false;
 
-  list().filter(o=>!o.camDone).forEach(o=>{
-    // <50 CM FILTRESI (Herhangi bir kenari 50cm(500mm)'den kisaysa ve ayar kapaliysa dahil etme)
-    if (!inc50 && (o.w < 500 || o.h < 500)) return;
+  const dimMap = new Map();
+  const exm = {};
 
-    const key=o.t+'|'+TUR(o),kk=K(o);
-    for(let i=0;i<o.q*kk;i++){const pid=o.id+'~'+i,pc={w:o.w,h:o.h,id:o.id,n:o.no,pid,lb:'#'+o.no+'-'+(Math.floor(i/kk)+1)+(kk>1?'AB'[i%kk]:'')};(CP.skip[pid]?(exm[key]=exm[key]||[]):(gr[key]=gr[key]||[])).push(pc)}
+  list().filter(o=>!o.camDone).forEach(o=>{
+    if (!inc50 && (o.w < 500 || o.h < 500)) return;
+    const kk = K(o);
+    for(let i=0; i<o.q*kk; i++){
+      const pid = o.id + '~' + i;
+      const dimKey = `${o.w}_${o.h}_${o.t}_${TUR(o)}`;
+      if (!dimMap.has(dimKey)) {
+        dimMap.set(dimKey, { w: o.w, h: o.h, t: o.t, tur: TUR(o), items: [] });
+      }
+      dimMap.get(dimKey).items.push({ id: o.id, n: o.no, pid });
+    }
   });
+
+  // Ölçülere göre grupları sırala (büyükten küçüğe alan sıralaması)
+  const sortedGroups = Array.from(dimMap.entries()).sort((a, b) => (b[1].w * b[1].h) - (a[1].w * a[1].h));
+  
+  const getGroupLetter = (index) => {
+    let letter = '';
+    let num = index;
+    while (num >= 0) {
+      letter = String.fromCharCode(97 + (num % 26)) + letter;
+      num = Math.floor(num / 26) - 1;
+    }
+    return letter;
+  };
+
+  const gr = {};
+  sortedGroups.forEach(([dimKey, group], groupIdx) => {
+    const letter = getGroupLetter(groupIdx);
+    group.items.forEach((item, itemIdx) => {
+      const seq = itemIdx + 1;
+      const lb = `${letter}${seq}`; // örn: a1, a2, b1, b2, b3, b4
+      const pc = { w: group.w, h: group.h, id: item.id, n: item.n, pid: item.pid, lb };
+      const key = group.t + '|' + group.tur;
+      if (CP.skip[item.pid]) {
+        (exm[key] = exm[key] || []).push(pc);
+      } else {
+        (gr[key] = gr[key] || []).push(pc);
+      }
+    });
+  });
+
   Object.values(gr).forEach(a=>a.forEach((p,i)=>p.u=i));
   return [...new Set([...Object.keys(gr),...Object.keys(exm)])].map(key=>{
     const gk=gr[key]||[],[t,tur]=key.split('|'),pcs=gk.length,bad=[];
@@ -461,6 +496,122 @@ function cutOrder(P){
 function seqList(g){return g.sheets.flatMap((s,si)=>cutOrder(s.p).map((p,i)=>({...p,si,sq:i+1})))}
 window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
 window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
+
+/* ---------- Manuel Sürükle & Bırak (Drag & Drop) Fonksiyonları ---------- */
+let draggingPiece = null;
+let dragContext = null;
+
+function startDrag(e, gi, si, pid) {
+  if (CP.locked) return;
+  e.preventDefault();
+  const g = gPlan[gi];
+  if (!g) return;
+  const sheet = g.sheets[si];
+  if (!sheet) return;
+  const p = sheet.p.find(item => item.pid === pid);
+  if (!p || CP.done[pid]) return;
+
+  const svg = e.target.closest('svg');
+  if (!svg) return;
+
+  draggingPiece = p;
+  dragContext = {
+    gi, si, pid,
+    p, sheet, svg,
+    origX: p.x,
+    origY: p.y,
+    startX: e.clientX,
+    startY: e.clientY
+  };
+
+  window.addEventListener('mousemove', onDrag);
+  window.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!draggingPiece || !dragContext) return;
+  e.preventDefault();
+  const { p, sheet, svg, origX, origY, startX, startY } = dragContext;
+
+  const rect = svg.getBoundingClientRect();
+  const scaleX = sheet.SW / rect.width;
+  const scaleY = sheet.SH / rect.height;
+
+  const dx = (e.clientX - startX) * scaleX;
+  const dy = (e.clientY - startY) * scaleY;
+
+  let newX = Math.round(origX + dx);
+  let newY = Math.round(origY + dy);
+
+  // Kalıp dışına taşma kontrolü
+  newX = Math.max(0, Math.min(newX, sheet.SW - p.a));
+  newY = Math.max(0, Math.min(newY, sheet.SH - p.b));
+
+  // Diğer parçalarla çakışma (üst üste binme) kontrolü
+  const hasCollision = sheet.p.some(other => {
+    if (other.pid === p.pid) return false;
+    return (
+      newX < other.x + other.a &&
+      newX + p.a > other.x &&
+      newY < other.y + other.b &&
+      newY + p.b > other.y
+    );
+  });
+
+  if (!hasCollision) {
+    p.x = newX;
+    p.y = newY;
+    updatePieceDOM(dragContext);
+  }
+}
+
+function endDrag(e) {
+  if (!draggingPiece) return;
+  window.removeEventListener('mousemove', onDrag);
+  window.removeEventListener('mouseup', endDrag);
+
+  // Bırakılan konumu state'e (CP.man) kaydet
+  if (!CP.man) {
+    CP.man = JSON.stringify(stripPlan(gPlan));
+  } else {
+    try {
+      const manPlan = JSON.parse(CP.man);
+      if (manPlan[dragContext.gi] && manPlan[dragContext.gi].sheets[dragContext.si]) {
+        const targetP = manPlan[dragContext.gi].sheets[dragContext.si].p.find(item => item.pid === dragContext.pid);
+        if (targetP) {
+          targetP.x = dragContext.p.x;
+          targetP.y = dragContext.p.y;
+        }
+        CP.man = JSON.stringify(manPlan);
+      }
+    } catch(err) {}
+  }
+  saveCP();
+  draggingPiece = null;
+  dragContext = null;
+  renderGlass();
+}
+
+function updatePieceDOM(ctx) {
+  const gEl = ctx.svg.querySelector(`g[data-pid="${ctx.pid}"]`);
+  if (gEl) {
+    const rects = gEl.querySelectorAll('rect');
+    const textEls = gEl.querySelectorAll('text');
+    let mainRect = rects[rects.length - 1];
+    if (mainRect) {
+      mainRect.setAttribute('x', ctx.p.x);
+      mainRect.setAttribute('y', ctx.p.y);
+    }
+    const fs = ctx.sheet.SW / 55;
+    if (textEls.length >= 2) {
+      textEls[0].setAttribute('x', ctx.p.x + ctx.p.a / 2);
+      textEls[0].setAttribute('y', ctx.p.y + ctx.p.b / 2 - fs * 0.1);
+      textEls[1].setAttribute('x', ctx.p.x + ctx.p.a / 2);
+      textEls[1].setAttribute('y', ctx.p.y + ctx.p.b / 2 + fs * 1.1);
+    }
+  }
+}
+
 $('lk').onclick=()=>{
   if(!CP.locked){if(!confirm('Plan kilitlensin mi? Şu anki yerleşim (elle yaptığınız değişiklikler dahil) sabitlenir; yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
     const j=JSON.stringify(gPlan.map(({all,stk,...g})=>g));CP.snap=j;CP.man=j;CP.locked=true}
@@ -486,7 +637,6 @@ function listTable(g,gi,sl){
 const stripP=p=>{const{x,y,a,b,sw,sh,...r}=p;return r};
 const putP=(base,r)=>{const f=base.w<=r.w&&base.h<=r.h;return{...base,a:f?base.w:base.h,b:f?base.h:base.w,x:r.x,y:r.y,sw:r.w,sh:r.h}};
 const stripPlan=pl=>pl.map(({all,stk,...g})=>g);
-/* pidB=null → parçayı kalıp dışına al. Sonuç: {plan,out:'swap'|'free'|'bad'} ya da sığmıyorsa null */
 function editPlan(gi,pidA,pidB){
   const plan=JSON.parse(JSON.stringify(gPlan)),g=plan[gi];g.bad=g.bad||[];g.sheets.forEach(s=>{s.fr=s.fr||[]});
   const loc=pid=>{for(let si=0;si<g.sheets.length;si++){const i=g.sheets[si].p.findIndex(p=>p.pid===pid);if(i>=0)return{si,p:g.sheets[si].p[i]}}return null};
@@ -547,8 +697,8 @@ function renderGlass(){
   let pend=0;if(lk||man){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat((g.bad||[]).map(p=>p.id),(g.ex||[]).map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
   const pw=pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için ${lk?'yönetici kilidi açıp ':''}"Planı yenile" ile otomatik plana dönüp tekrar kilitleyin.</span>`:'';
   out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+pw
-    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya tıklayarak yerine başka ölçü koyabilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
-    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya tıklayıp yerine başka ölçü koyabilir, listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
+    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya tıklayarak yerine başka ölçü koyabilir veya fareyle sürükleyebilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
+    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya tıklayıp yerine başka ölçü koyabilir, parçaları fareyle sürükleyebilir veya listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
   const fw=fewList(gPlan),fwn=fw.reduce((u,f)=>u+f.ps.length,0),fsig=fw.map(f=>f.t+f.tur+f.ps.map(p=>p.pid).join()).join('|');
   const cb=document.querySelector('.tab-btn[data-t="cam"]');if(cb)cb.textContent='🪟 Cam Kesim'+(fwn?' ⚠️'+fwn:'');
   if(fwn){out+=`<div class="box" style="border:2px solid #D98E2B;background:rgba(217,142,43,.12)"><b>⚠️ Az parça kalan kalıplar var (${fwn} parça)</b><p class="mu" style="margin:6px 0">Bu parçalar için yeni levha açmadan önce <b>daha önce kesilmiş / depodaki artık camlardan bulunuz</b>.</p>`+
@@ -564,7 +714,7 @@ function renderGlass(){
       out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem&&s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
       <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
       s.p.map(p=>{const dn=CP.done[p.pid],e=ext(p);
-        return`<g ${canEd?`onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`:''}>`+((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'')+
+        return`<g data-pid="${p.pid}" ${!CP.locked?`onmousedown="startDrag(event, ${gi}, ${i}, '${p.pid}')" style="cursor:grab"`: canEd?`onclick="swp(${gi},'${p.pid}')" style="cursor:pointer"`:''}>`+((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'')+
         `<rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${dn?'#BFE8C8':'#BFE3F2'}" stroke="${dn?'#2E8B57':'#0B6E99'}" stroke-width="3"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b">${sm[p.pid]}. ${p.lb||'#'+p.n}</text><text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)}</text></g>`}).join('')+'</svg>'});
     out+=listTable(g,gi,sl)+'</div>'});
   $('o-cam').innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
@@ -615,7 +765,7 @@ $('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf')
 
 /* ---------- Montaj ---------- */
 const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
-$('m-sip').onchange=()=>{const o=orders[$('m-sip').value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
+$('m-sip').onchange=()=>{const o=orders[$('m-sip'].value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
 $('madd').onclick=()=>{
   const m={id:'m'+Date.now(),sip:$('m-sip').value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
   if(!m.m&&!m.a)return toast('Müşteri veya adres girin');if(!m.d)return toast('Montaj tarihi seçin');
