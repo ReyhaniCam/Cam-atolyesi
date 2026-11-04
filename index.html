@@ -28,9 +28,20 @@
 <select id="flt"><option value="bekleyen">Bekleyenler</option><option value="hepsi">Hepsi</option></select></div>
 <div id="olist"></div></div></div>
 
-<div id="tab-cam" class="tab-content"><div class="box fr"><button class="btn" id="lk">🔓 Açık</button><button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
-<button class="btn btn-success" id="dc">✅ Bu planı kesildi işaretle</button>
-<button class="btn" id="xc">📥 Excel</button><button class="btn" id="lb">🏷️ Etiket</button><button class="btn" onclick="window.print()">🖨️ Yazdır</button></div><div id="o-cam"></div></div>
+<div id="tab-cam" class="tab-content">
+  <div class="box fr">
+    <button class="btn" id="lk">🔓 Açık</button>
+    <button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
+    <button class="btn btn-success" id="dc">✅ Bu planı kesildi işaretle</button>
+    <button class="btn" id="xc">📥 Excel</button>
+    <button class="btn" id="lb">🏷️ Etiket</button>
+    <button class="btn" onclick="window.print()">🖨️ Yazdır</button>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:bold;margin-left:auto;cursor:pointer;background:#EEF2F6;padding:6px 12px;border-radius:8px;border:1px solid var(--steel-line);">
+      <input type="checkbox" id="c-lt50" style="width:16px;height:16px;min-height:auto;"> 50 cm'den kısa parçaları dahil et
+    </label>
+  </div>
+  <div id="o-cam"></div>
+</div>
 
 <div id="tab-cita" class="tab-content"><div class="box fr"><button class="btn btn-primary" id="rt">🔄 Planı yenile</button>
 <button class="btn btn-success" id="dt">✅ Bu planı kesildi işaretle</button>
@@ -72,7 +83,7 @@ const DEF={kerf:3,bl:6000,ded:12,rem:30,few:2};
 let orders={},stock={},settings={...DEF},db=null,gPlan=[],tPlan=[];
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)};
 
-/* ---------- Giriş (Reyhani sitesiyle aynı şifreler) ---------- */
+/* ---------- Giriş ---------- */
 const ADMIN_HASH="50e65b1455800c98b480cec56db88524fabd630ddd992df1a58faf5a6edd2430",STAFF_HASH="2b084c9efd9150fb848e4efb0b5f03f455470f68b153814944e14a6204ec5b9a",DEVICE_AUTH_HASH="12a7d32afcd5140951fe6ea7b2c8ed7a9c2b196333190f28f899aaf85699c7e6",DEVKEY='reyhani_device_authorized_v1';
 let role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
@@ -174,8 +185,8 @@ function renderOrders(){
     const meta=[o0.fn&&o0.fl?'Fiş no '+esc(o0.fn):'',dFmt(o0.ft),o0.a?esc(o0.a):'',o0.nt?esc(o0.nt):''].filter(Boolean).join(' · ');
     return`<details class="box" ${open?'open':''} style="padding:8px 12px"><summary onclick="OPEN[OG[${gi}]]=!this.parentNode.open" style="cursor:pointer"><b>${title}</b> · <b>${esc(o0.m)||'<span class="err">isim yok</span>'}</b>${o0.rq?' · isteyen: <b>'+esc(o0.rq)+'</b>':''}<br><span class="mu">${os.length} satır / ${adet} adet · Cam ${doneN}/${os.length}${meta?' · '+meta:''}</span></summary>
     <div style="margin:6px 0"><button class="btn btn-sm" onclick="gdraft(${gi})">✎ Fişi düzenle / satır ekle</button> ${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="gdelg(${gi})">🗑 Fişi sil</button>`:''}</div>
-    <div class="tb"><table><tr><th>No</th><th>Ölçü (cm)</th><th>Adet</th><th>Cam</th><th>Çıta</th><th>Durum</th><th></th></tr>`+
-    rows.map(o=>`<tr><td>#${o.no}</td><td>${cm(o.w)}×${cm(o.h)}</td><td>${o.q}</td><td>${o.t} mm ${TUR(o)}<br><span class="mu">${K(o)==2?'Çift':'Tek'}</span></td><td>${K(o)==2?o.c+' mm':'-'}</td>
+    <div class="tb"><table><tr><th>No</th><th>Genişlik (En)</th><th>Yükseklik (Boy)</th><th>Adet</th><th>Cam</th><th>Çıta</th><th>Durum</th><th></th></tr>`+
+    rows.map(o=>`<tr><td>#${o.no}</td><td>${cm(o.w)} cm</td><td>${cm(o.h)} cm</td><td>${o.q}</td><td>${o.t} mm ${TUR(o)}<br><span class="mu">${K(o)==2?'Çift':'Tek'}</span></td><td>${K(o)==2?o.c+' mm':'-'}</td>
     <td><span class="pill ${o.camDone?'d':''}" onclick="tog('${o.id}','camDone')">Cam ${o.camDone?'✔':'…'}</span>${K(o)==2?` <span class="pill ${o.citaDone?'d':''}" onclick="tog('${o.id}','citaDone')">Çıta ${o.citaDone?'✔':'…'}</span>`:''}</td>
     <td>${role==='admin'?`<button class="btn btn-danger btn-sm" onclick="del('${o.id}')">🗑</button>`:''}</td></tr>`).join('')+'</table></div></details>'}).join('');
   $('olist').innerHTML=out||'<div class="mu">Sipariş yok.</div>';
@@ -214,7 +225,7 @@ const dget=id=>DR.find(d=>d.id===id);
 async function readFis(f){
   if(!f)return;let key=localStorage.getItem('gemini_api_key');
   if(!key){gkey();key=localStorage.getItem('gemini_api_key');if(!key)return}
-  const d={id:'d'+rid(),fl:f.name||'Fiş',st:'reading',msg:'',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[],open:true};
+  const d={id:'d'+rid(),fl:f.name||'Fiş',st:'reading',msg:'',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[],open:false};
   DR.unshift(d);renderG();
   try{
     const pdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name);
@@ -253,7 +264,7 @@ window.gall=(id,k,v)=>{const d=dget(id);if(!d||v==='')return;if(['t','c'].includ
 window.gdel=(id,i)=>{const d=dget(id);if(!d)return;if(d.rows[i]&&d.rows[i].oid&&role!=='admin')return toast('Kayıtlı satırı silmek için yönetici girişi gerekli');d.rows.splice(i,1);saveDR();renderG()};
 window.gadd=id=>{const d=dget(id);if(d){d.rows.push(blankRow(d.rows[d.rows.length-1]));saveDR();FOCUS=id;renderG()}};
 window.gdrop=id=>{const d=dget(id);if(d&&confirm(d.edit?'Düzenleme iptal edilsin mi? (Kayıtlı siparişler değişmez)':'Bu fiş taslağı silinsin mi? (Siparişlere eklenmedi)')){DR=DR.filter(x=>x.id!==id);saveDR();renderG()}};
-window.newDraft=()=>{const d={id:'d'+rid(),fl:'Elle girilen sipariş',st:'ready',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[blankRow()],open:true};DR.unshift(d);saveDR();FOCUS=d.id;renderG();const el=document.querySelector('[data-d="'+d.id+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
+window.newDraft=()=>{const d={id:'d'+rid(),fl:'Elle girilen sipariş',st:'ready',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[blankRow()],open:false};DR.unshift(d);saveDR();FOCUS=d.id;renderG();const el=document.querySelector('[data-d="'+d.id+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
 window.openNew=()=>{document.querySelector('.tab-btn[data-t="fis"]').click();newDraft()};
 window.gdraft=i=>{
   const key=OG[i],all=list().filter(o=>gkeyOf(o)===key).sort((a,b)=>(a.no||0)-(b.no||0));if(!all.length)return;
@@ -267,14 +278,14 @@ function draftHTML(d){
   const chk=d.rows.filter(r=>!r.ok).length,combos=[...new Set(d.rows.map(r=>`${r.t} mm ${r.tur} ${r.k==2?'çift ('+r.c+')':'tek'}`))];
   const stat=d.st==='reading'?' · ⏳ okunuyor…':d.st==='error'?' · '+esc(d.msg):chk?` · <span class="err">⚠️ ${chk} satır kontrol edilmeli</span>`:'';
   let h=`<details class="box" data-d="${d.id}" ${d.open?'open':''}><summary onclick="dtog('${d.id}',this)" style="cursor:pointer"><b>${d.edit?'✎ Düzenleniyor: ':'📄 '}${esc(d.fl)}</b> · <b>${esc(d.m)||'<span class="err">kimin adına?</span>'}</b>${d.rq?' · isteyen: <b>'+esc(d.rq)+'</b>':''} · ${d.rows.length} satır${stat}${combos.length&&combos.length<=3?'<br><span class="mu">Cam: '+combos.join(' · ')+'</span>':''}</summary>`;
-  if(d.st==='reading')return h+'<p class="mu">Fiş okunuyor, lütfen bekleyin…</p></details>';
-  h+=`<div class="fr"><label>Kimin adına kesilecek<input value="${esc(d.m)}" list="dl-m" autocomplete="off" placeholder="Seçin veya yazın" oninput="dset('${d.id}','m',this.value)"></label><label>Kim istiyor<input value="${esc(d.rq)}" list="dl-r" autocomplete="off" placeholder="İsteyen kişi" oninput="dset('${d.id}','rq',this.value)"></label><label>Apartman / Adres<input value="${esc(d.a)}" list="dl-a" autocomplete="off" oninput="dset('${d.id}','a',this.value)"></label></div>
+  if(d.st==='reading')return h+'<div><p class="mu">Fiş okunuyor, lütfen bekleyin…</p></div></details>';
+  h+=`<div><div class="fr"><label>Kimin adına kesilecek<input value="${esc(d.m)}" list="dl-m" autocomplete="off" placeholder="Seçin veya yazın" oninput="dset('${d.id}','m',this.value)"></label><label>Kim istiyor<input value="${esc(d.rq)}" list="dl-r" autocomplete="off" placeholder="İsteyen kişi" oninput="dset('${d.id}','rq',this.value)"></label><label>Apartman / Adres<input value="${esc(d.a)}" list="dl-a" autocomplete="off" oninput="dset('${d.id}','a',this.value)"></label></div>
   <div class="fr"><label>Fiş no<input value="${esc(d.no)}" oninput="dset('${d.id}','no',this.value)"></label><label>Fiş tarihi<input type="date" value="${esc(d.d)}" onchange="dset('${d.id}','d',this.value)"></label><label style="flex:2">Fiş notu<input value="${esc(d.n)}" oninput="dset('${d.id}','n',this.value)"></label></div>
   <div class="fr">${ALL(d.id,'k','Tip (hepsi)',[[2,'Çift cam'],[1,'Tek cam']])}${ALLN(d.id,'t','Cam mm (hepsi)','dl-t')}${ALL(d.id,'tur','Tür (hepsi)',[['Düz','Düz'],['Buzlu','Buzlu']])}${ALLN(d.id,'c','Çıta mm (hepsi)','dl-c')}</div>
   <p class="mu">Ölçüler cm. ${d.edit?'Bu fiş zaten siparişlerde; kaydedince değişiklikler siparişlere işlenir. Ölçü/cam değişen satırların "kesildi" işareti sıfırlanır.':'Kırmızı satırlar okunamayan / emin olunmayan yerler; fişle karşılaştırın.'} Adet = çift cam adedi. Adet kutusunda Enter yeni satır açar.</p>
-  <div class="tb"><table><tr><th>No</th><th>En</th><th>Boy</th><th>Adet</th><th>Tip</th><th>Cam</th><th>Çıta</th><th>Tür</th><th></th></tr>`+
-  d.rows.map((r,i)=>`<tr style="${r.ok?'':'background:rgba(217,108,108,.18)'}"><td class="mu">${r.oid?'#'+(r.no||''):'+'}</td><td>${inpR(d.id,i,'en',r.en,70)}</td><td>${inpR(d.id,i,'boy',r.boy,70)}</td><td>${inpR(d.id,i,'adet',r.adet,50,`onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();gadd('${d.id}')}"`)}</td><td>${selR(d.id,i,'k',[[2,'Çift'],[1,'Tek']],r.k)}</td><td>${numR(d.id,i,'t',r.t,56,'dl-t')}</td><td>${r.k==2?numR(d.id,i,'c',r.c,56,'dl-c'):'-'}</td><td>${selR(d.id,i,'tur',[['Düz','Düz'],['Buzlu','Buzlu']],r.tur)}</td><td><button class="btn btn-danger btn-sm" onclick="gdel('${d.id}',${i})">✕</button></td></tr>`).join('')+
-  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">${d.edit?'💾 Değişiklikleri kaydet':'✅ Bu fişi siparişlere ekle'}</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">${d.edit?'✖ İptal':'🗑 Bu fişi sil'}</button></div></details>`;
+  <div class="tb"><table><tr><th>No</th><th>Genişlik (En)</th><th>Yükseklik (Boy)</th><th>Adet</th><th>Tip</th><th>Cam</th><th>Çıta</th><th>Tür</th><th></th></tr>`+
+  d.rows.map((r,i)=>`<tr style="${r.ok?'':'background:rgba(217,108,108,.18)'}"><td class="mu">${r.oid?'#'+(r.no||''):'+'}</td><td>${inpR(d.id,i,'en',r.en,80)}</td><td>${inpR(d.id,i,'boy',r.boy,80)}</td><td>${inpR(d.id,i,'adet',r.adet,60,`onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();gadd('${d.id}')}"`)}</td><td>${selR(d.id,i,'k',[[2,'Çift'],[1,'Tek']],r.k)}</td><td>${numR(d.id,i,'t',r.t,60,'dl-t')}</td><td>${r.k==2?numR(d.id,i,'c',r.c,60,'dl-c'):'-'}</td><td>${selR(d.id,i,'tur',[['Düz','Düz'],['Buzlu','Buzlu']],r.tur)}</td><td><button class="btn btn-danger btn-sm" onclick="gdel('${d.id}',${i})">✕</button></td></tr>`).join('')+
+  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">${d.edit?'💾 Değişiklikleri kaydet':'✅ Bu fişi siparişlere ekle'}</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">${d.edit?'✖ İptal':'🗑 Bu fişi sil'}</button></div></div></details>`;
   return h;
 }
 function renderG(){
@@ -332,8 +343,7 @@ function gFill(items,SW,SH,k,fit,split){
     const F=free[best.i],a=best.a,b=best.b;free.splice(best.i,1);placed.push({...p,a,b,x:F.x,y:F.y});
     const wr=F.w-a-k,hb=F.h-b-k;
     const Ah=Math.max(wr>0?wr*b:0,hb>0?F.w*hb:0),Av=Math.max(wr>0?wr*F.h:0,hb>0?a*hb:0);
-    const H=split==='sas'?(F.w-a)<=(F.h-b):split==='las'?(F.w-a)>(F.h-b):split==='maxa'?Ah>=Av:Ah<Av;
-    if(H){if(wr>0)free.push({x:F.x+a+k,y:F.y,w:wr,h:b});if(hb>0)free.push({x:F.x,y:F.y+b+k,w:F.w,h:hb})}
+    const H=split==='sas'?(F.w-a)<=(F.h-b):split==='las'?(F.w-a)>(F.h-b):split==='maxa'?Ah>=Av:Ah<Av; if(H){if(wr>0)free.push({x:F.x+a+k,y:F.y,w:wr,h:b});if(hb>0)free.push({x:F.x,y:F.y+b+k,w:F.w,h:hb})}
     else{if(wr>0)free.push({x:F.x+a+k,y:F.y,w:wr,h:F.h});if(hb>0)free.push({x:F.x,y:F.y+b+k,w:a,h:hb})}
   }
   return{placed,left,free};
@@ -369,7 +379,19 @@ function planAttempt(pcs,av0,k,att){
     if(one.length)pick=one.sort((x,y)=>(y.s.artik?1:0)-(x.s.artik?1:0)||x.s.w*x.s.h-y.s.w*y.s.h)[0];
     else pick=cand.sort((x,y)=>(y.res.used/(y.s.w*y.s.h)+(y.s.artik?.08:0))-(x.res.used/(x.s.w*x.s.h)+(x.s.artik?.08:0)))[0];
     pick.s.left--;rem=pick.res.left;
-    sheets.push({p:pick.res.placed,SW:pick.s.w,SH:pick.s.h,stockId:pick.s.id,artik:pick.s.artik,rem:pick.res.rm,fr:pick.res.free.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}))});
+
+    // SIMETRI (MERKEZLEME) VE FIREYI DISA ATMA:
+    const placed = pick.res.placed;
+    if (placed.length > 0) {
+      const maxX = Math.max(...placed.map(p => p.x + p.a));
+      const maxY = Math.max(...placed.map(p => p.y + p.b));
+      const oX = (pick.s.w - maxX) / 2;
+      const oY = (pick.s.h - maxY) / 2;
+      placed.forEach(p => { p.x += oX; p.y += oY; });
+      pick.res.free.forEach(r => { r.x += oX; r.y += oY; });
+    }
+
+    sheets.push({p:placed, SW:pick.s.w, SH:pick.s.h, stockId:pick.s.id, artik:pick.s.artik, rem:pick.res.rm, fr:pick.res.free.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}))});
   }
   const waste=sheets.reduce((u,s)=>u+s.SW*s.SH-s.p.reduce((a,p)=>a+p.a*p.b,0)-s.rem.reduce((a,r)=>a+r[0]*r[1],0),0);
   const fresh=sheets.reduce((u,s)=>u+(s.artik?0:s.SW*s.SH),0);
@@ -392,7 +414,15 @@ function pack(ps,SW,SH,k){
 function planGlass(){
   const k=+settings.kerf||0,gr={};
   const exm={};
-  list().filter(o=>!o.camDone).forEach(o=>{const key=o.t+'|'+TUR(o),kk=K(o);for(let i=0;i<o.q*kk;i++){const pid=o.id+'~'+i,pc={w:o.w,h:o.h,id:o.id,n:o.no,pid,lb:'#'+o.no+'-'+(Math.floor(i/kk)+1)+(kk>1?'AB'[i%kk]:'')};(CP.skip[pid]?(exm[key]=exm[key]||[]):(gr[key]=gr[key]||[])).push(pc)}});
+  const inc50 = $('c-lt50') ? $('c-lt50').checked : false;
+
+  list().filter(o=>!o.camDone).forEach(o=>{
+    // <50 CM FILTRESI (Herhangi bir kenari 50cm(500mm)'den kisaysa ve ayar kapaliysa dahil etme)
+    if (!inc50 && (o.w < 500 || o.h < 500)) return;
+
+    const key=o.t+'|'+TUR(o),kk=K(o);
+    for(let i=0;i<o.q*kk;i++){const pid=o.id+'~'+i,pc={w:o.w,h:o.h,id:o.id,n:o.no,pid,lb:'#'+o.no+'-'+(Math.floor(i/kk)+1)+(kk>1?'AB'[i%kk]:'')};(CP.skip[pid]?(exm[key]=exm[key]||[]):(gr[key]=gr[key]||[])).push(pc)}
+  });
   Object.values(gr).forEach(a=>a.forEach((p,i)=>p.u=i));
   return [...new Set([...Object.keys(gr),...Object.keys(exm)])].map(key=>{
     const gk=gr[key]||[],[t,tur]=key.split('|'),pcs=gk.length,bad=[];
@@ -508,6 +538,8 @@ window.autoPlan=()=>{
   if(CP.locked)return toast('Plan kilitli');
   if(CP.man){if(role!=='admin')return toast('Yönetici girişi gerekli');if(!confirm('Elle yaptığınız değişiklikler silinip plan otomatik yeniden hesaplanacak. Devam edilsin mi?'))return;CP.man=null;saveCP()}
   render();toast('Plan yenilendi')};
+$('c-lt50').onchange = () => { resetCP(); render(); toast('Plan 50cm ayarına göre yenilendi'); };
+
 function renderGlass(){
   const lk=CP.locked&&CP.snap,man=!lk&&CP.man,canEd=role==='admin'&&!CP.locked;
   gPlan=lk?JSON.parse(CP.snap):man?JSON.parse(CP.man):planGlass();let out='';
