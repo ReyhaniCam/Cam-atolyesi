@@ -2,6 +2,7 @@
 <html lang="tr"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Reyhani Yapı — Cam Kesim &amp; Montaj</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -776,7 +777,7 @@ $('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf')
 
 /* ---------- Montaj ---------- */
 const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
-$('m-sip').onchange=()=>{const o=orders[$('m-sip'].value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
+$('m-sip').onchange=()=>{const o=orders[$('m-sip').value];if(o){$('m-m').value=o.m||'';$('m-a').value=o.a||''}};
 $('madd').onclick=()=>{
   const m={id:'m'+Date.now(),sip:$('m-sip').value,m:$('m-m').value.trim(),a:$('m-a').value.trim(),d:$('m-d').value,e:$('m-e').value.trim(),n:$('m-n').value.trim(),st:'bekliyor',ts:Date.now()};
   if(!m.m&&!m.a)return toast('Müşteri veya adres girin');if(!m.d)return toast('Montaj tarihi seçin');
