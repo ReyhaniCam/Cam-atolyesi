@@ -354,7 +354,7 @@ function bestFill(orders,SW,SH,k,mr){
   let best=null;
   for(const ord of orders)for(const f of FITS)for(const sp of SPLITS){
     const r=gFill(ord,SW,SH,k,f,sp);if(!r.placed.length)continue;
-    const used=r.placed.reduce((u,p)=>u+p.a*p.b,0),rm=gRem(r.free,mr),ra=rm.reduce((u,x)=>u+x[0]*x[1],0),score=used+0.4*ra;
+    const used=r.placed.reduce((u,p)=>u+p.a*p.b,0),rm=gRem(r.free,mr),ra=rm.reduce((u,x)=>x[0]*x[1],0),score=used+0.4*ra;
     if(!best||score>best.score+1e-6||(Math.abs(score-best.score)<=1e-6&&r.placed.length>best.placed.length)){best={...r,used,rm,score}}
   }
   return best;
@@ -501,7 +501,7 @@ function createModal(html) {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px;touch-action:manipulation';
   m.innerHTML = `<div style="background:#fff;color:#14202b;max-width:520px;width:100%;max-height:85vh;overflow:auto;border-radius:12px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);-webkit-overflow-scrolling:touch">${html}</div>`;
   m.onclick = e => {
-    if (Date.now() - modalOpenedAt < 350) return;
+    if (Date.now() - modalOpenedAt < 300) return;
     if (e.target === m) closeSw();
   };
   document.body.appendChild(m);
@@ -658,7 +658,6 @@ window.swpClick = function(el) {
 };
 
 window.rotApply = (gi, pid) => {
-  if (Date.now() - modalOpenedAt < 250) return;
   if (role === 'guest') return toast('Giriş yapmanız gerekli');
   const g = gPlan[gi]; if(!g) return;
   let targetP = null, targetS = null;
@@ -712,7 +711,7 @@ window.addPToFree = (gi, si, fri) => {
   } else {
     html += badCands.map(p => {
       const o = orders[p.id] || {};
-      return `<button class="btn btn-primary" style="display:block;width:100%;text-align:left;margin:6px 0;padding:12px;font-size:15px" onclick="placePInFree(${gi}, ${si}, ${fri}, '${p.pid}')">
+      return `<button class="btn btn-primary btn-modal-act" style="display:block;width:100%;text-align:left;margin:6px 0;padding:12px;font-size:15px" data-act="place" data-gi="${gi}" data-si="${si}" data-fri="${fri}" data-pid="${p.pid}">
         <b>${cm(p.w)}×${cm(p.h)} cm</b> · ${p.lb || '#' + p.n} · ${esc(o.m)} <span style="float:right">➕ Buraya Koy</span>
       </button>`;
     }).join('');
@@ -724,18 +723,18 @@ window.addPToFree = (gi, si, fri) => {
   } else {
     html += otherCands.slice(0, 40).map(x => {
       const p = x.p, o = orders[p.id] || {};
-      return `<button class="btn" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" onclick="placePInFree(${gi}, ${si}, ${fri}, '${p.pid}')">
+      return `<button class="btn btn-modal-act" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" data-act="place" data-gi="${gi}" data-si="${si}" data-fri="${fri}" data-pid="${p.pid}">
         <b>${cm(p.a)}×${cm(p.b)} cm</b> · ${p.lb || '#' + p.n} · ${esc(o.m)} (${x.sIdx + 1}. kalıptan)
       </button>`;
     }).join('');
   }
 
-  html += `<button class="btn" style="display:block;width:100%;margin-top:14px;padding:10px" onclick="closeSw()">Kapat</button>`;
+  html += `<button class="btn btn-modal-close" style="display:block;width:100%;margin-top:14px;padding:10px">Kapat</button>`;
   createModal(html);
+  bindModalEvents();
 };
 
 window.placePInFree = (gi, si, fri, pid) => {
-  if (Date.now() - modalOpenedAt < 250) return;
   if (role === 'guest') return toast('Giriş yapmanız gerekli');
   if (CP.locked) return toast('Plan kilitli');
   const plan = JSON.parse(JSON.stringify(gPlan));
@@ -808,14 +807,15 @@ window.badClick = (gi, pid) => {
     html += `<p class="err">Şu anki kalıplarda bu parçanın sığabileceği boş alan yok. Önce bir parçayı kalıptan çıkarıp yer açabilirsiniz.</p>`;
   } else {
     html += `<p class="mu">Bu parçanın sığabileceği boş alanlar:</p>` + validSlots.map(x => `
-      <button class="btn btn-primary" style="display:block;width:100%;text-align:left;margin:6px 0;padding:12px;font-size:15px" onclick="placePInFree(${gi}, ${x.sIdx}, ${x.fri}, '${pid}')">
+      <button class="btn btn-primary btn-modal-act" style="display:block;width:100%;text-align:left;margin:6px 0;padding:12px;font-size:15px" data-act="place" data-gi="${gi}" data-si="${x.sIdx}" data-fri="${x.fri}" data-pid="${pid}">
         <b>${x.sIdx + 1}. Kalıp</b> — Boşluk: ${cm(x.fr.w)}×${cm(x.fr.h)} cm <span style="float:right">➕ Buraya Yerleştir</span>
       </button>
     `).join('');
   }
 
-  html += `<button class="btn" style="display:block;width:100%;margin-top:14px;padding:10px" onclick="closeSw()">Kapat</button>`;
+  html += `<button class="btn btn-modal-close" style="display:block;width:100%;margin-top:14px;padding:10px">Kapat</button>`;
   createModal(html);
+  bindModalEvents();
 };
 
 $('lk').onclick=()=>{
@@ -870,9 +870,33 @@ function editPlan(gi,pidA,pidB){
 let SWR=[];
 window.closeSw=()=>{const m=$('swm');if(m)m.remove()};
 window.swApply=i=>{
-  if(Date.now() - modalOpenedAt < 250) return;
   const r=SWR[i];if(!r)return;CP.man=JSON.stringify(stripPlan(r.plan));saveCP();closeSw();render();toast('Değişiklik uygulandı')
 };
+
+function bindModalEvents() {
+  const m = $('swm');
+  if (!m) return;
+  m.querySelectorAll('.btn-modal-act').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      if (act === 'rot') {
+        rotApply(parseInt(btn.dataset.gi, 10), btn.dataset.pid);
+      } else if (act === 'swap') {
+        swApply(parseInt(btn.dataset.idx, 10));
+      } else if (act === 'place') {
+        placePInFree(parseInt(btn.dataset.gi, 10), parseInt(btn.dataset.si, 10), parseInt(btn.dataset.fri, 10), btn.dataset.pid);
+      }
+    });
+  });
+  m.querySelectorAll('.btn-modal-close').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      closeSw();
+    });
+  });
+}
+
 window.swp=(gi,pid)=>{
   if(role==='guest')return toast('Giriş yapmanız gerekli');
   if(CP.locked)return toast('Plan kilitli — önce 🔒 kilidi açın');
@@ -886,7 +910,7 @@ window.swp=(gi,pid)=>{
 
   SWR = [];
   let html = `<h3 style="margin:0 0 4px">${A.si+1}. kalıp · ${cm(A.p.a)}×${cm(A.p.b)} cm (${A.p.lb||'#'+A.p.n})</h3>
-  <button class="btn btn-primary" style="display:block;width:100%;margin:12px 0;font-size:16px;padding:12px" onclick="rotApply(${gi}, '${pid}')">🔄 Bu Parçayı Döndür (90°)</button>
+  <button class="btn btn-primary btn-modal-act" style="display:block;width:100%;margin:12px 0;font-size:16px;padding:12px" data-act="rot" data-gi="${gi}" data-pid="${pid}">🔄 Bu Parçayı Döndür (90°)</button>
   <p class="mu" style="margin:0 0 8px;color:#555">${esc(oo.m)} — bu yere hangi ölçü konsun?</p>`;
 
   if (badCands.length > 0) {
@@ -896,7 +920,7 @@ window.swp=(gi,pid)=>{
       if (!r) return '';
       SWR.push(r.plan);
       const o = orders[p.id] || {};
-      return `<button class="btn btn-primary" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" onclick="swApply(${SWR.length-1})">
+      return `<button class="btn btn-primary btn-modal-act" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" data-act="swap" data-idx="${SWR.length-1}">
         <b>${cm(p.w)}×${cm(p.h)} cm</b> · ${p.lb||'#'+p.n} · ${esc(o.m)} <span style="float:right">↔ Bununla Değiştir</span>
       </button>`;
     }).join('');
@@ -908,7 +932,7 @@ window.swp=(gi,pid)=>{
   html += otherRows.map(x => {
     SWR.push(x.r.plan);
     const p = x.c.p, o = orders[p.id] || {};
-    return `<button class="btn" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" onclick="swApply(${SWR.length-1})">
+    return `<button class="btn btn-modal-act" style="display:block;width:100%;text-align:left;margin:4px 0;padding:10px" data-act="swap" data-idx="${SWR.length-1}">
       <b>${cm(p.w)}×${cm(p.h)} cm</b> · ${p.lb||'#'+p.n} · ${esc(o.m)} · ${x.c.si>=0 ? (x.c.si+1)+'. kalıptan' : 'kalıp dışı'}<br><span class="mu">${OT[x.r.out]}</span>
     </button>`;
   }).join('') || '<p class="mu">Bu yere sığan başka parça yok.</p>';
@@ -917,10 +941,11 @@ window.swp=(gi,pid)=>{
   SWR.push(outR ? outR.plan : null);
   const outIdx = SWR.length - 1;
 
-  html += `<button class="btn btn-danger" style="display:block;width:100%;margin:12px 0 6px;padding:12px;font-size:15px" onclick="swApply(${outIdx})">➖ Bu parçayı kalıptan çıkar (kalıp dışı yap)</button>
-  <button class="btn" style="display:block;width:100%;padding:10px" onclick="closeSw()">Kapat</button>`;
+  html += `<button class="btn btn-danger btn-modal-act" style="display:block;width:100%;margin:12px 0 6px;padding:12px;font-size:15px" data-act="swap" data-idx="${outIdx}">➖ Bu parçayı kalıptan çıkar (kalıp dışı yap)</button>
+  <button class="btn btn-modal-close" style="display:block;width:100%;padding:10px">Kapat</button>`;
 
   createModal(html);
+  bindModalEvents();
 };
 
 window.autoPlan=()=>{
