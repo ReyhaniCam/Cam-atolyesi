@@ -491,7 +491,7 @@ function seqList(g){return g.sheets.flatMap((s,si)=>cutOrder(s.p).map((p,i)=>({.
 window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
 window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
 
-/* ---------- Manuel Sürükle & Bırak ve Tıklama (Mobil Destekli) ---------- */
+/* ---------- Manuel Sürükle & Bırak ve Döndürme (Mobil Destekli) ---------- */
 let draggingPiece = null;
 let dragContext = null;
 
@@ -654,6 +654,46 @@ window.swpClick = function(el) {
   swp(gi, pid);
 };
 
+// Parça Döndürme Fonksiyonu
+window.rotApply = (gi, pid) => {
+  const g = gPlan[gi]; if(!g) return;
+  let targetP = null, targetS = null;
+  for (const s of g.sheets) {
+    const p = s.p.find(x => x.pid === pid);
+    if (p) { targetP = p; targetS = s; break; }
+  }
+  if (!targetP) return;
+
+  const newA = targetP.b, newB = targetP.a; // En boy yer değiştiriyor
+  let newX = targetP.x, newY = targetP.y;
+
+  // Döndüğünde levha sınırından taşıyorsa içeri it
+  if (newX + newA > targetS.SW) newX = targetS.SW - newA;
+  if (newY + newB > targetS.SH) newY = targetS.SH - newB;
+
+  if (newX < 0 || newY < 0) return toast('Bu levhaya sığmıyor!');
+
+  // Başka parçanın üstüne biniyor mu kontrol et
+  const collision = targetS.p.some(other => {
+    if (other.pid === targetP.pid) return false;
+    return (newX < other.x + other.a && newX + newA > other.x && newY < other.y + other.b && newY + newB > other.y);
+  });
+
+  if (collision) return toast('Döndürmek için yeterli boş alan yok. Önce parçayı biraz boşluğa sürükleyin.');
+
+  targetP.a = newA;
+  targetP.b = newB;
+  targetP.x = newX;
+  targetP.y = newY;
+
+  CP.man = JSON.stringify(stripPlan(gPlan));
+  saveCP();
+  closeSw();
+  renderGlass();
+  toast('Parça döndürüldü');
+};
+
+
 $('lk').onclick=()=>{
   if(!CP.locked){if(!confirm('Plan kilitlensin mi? Şu anki yerleşim (elle yaptığınız değişiklikler dahil) sabitlenir; yeni siparişler ve ayar değişiklikleri bu planı değiştirmez.'))return;
     const j=JSON.stringify(gPlan.map(({all,stk,...g})=>g));CP.snap=j;CP.man=j;CP.locked=true}
@@ -722,7 +762,13 @@ window.swp=(gi,pid)=>{
   SWR.push(editPlan(gi,pid,null));const outIdx=SWR.length-1;
   closeSw();const m=document.createElement('div');m.id='swm';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px';
-  m.innerHTML=`<div style="background:#fff;color:#14202b;max-width:520px;width:100%;max-height:85vh;overflow:auto;border-radius:10px;padding:14px"><h3 style="margin:0 0 4px">${A.si+1}. kalıp · ${cm(A.p.a)}×${cm(A.p.b)} cm (${A.p.lb||'#'+A.p.n})</h3><p class="mu" style="margin:0 0 8px;color:#555">${esc(oo.m)} — bu yere hangi ölçü konsun? (Yalnızca bu alana sığanlar listelenir)</p>${html}<button class="btn btn-danger" style="display:block;width:100%;margin:8px 0 4px" onclick="swApply(${outIdx})">➖ Bu parçayı kalıptan çıkar (kalıp dışı)</button><button class="btn" style="display:block;width:100%" onclick="closeSw()">Kapat</button></div>`;
+  m.innerHTML=`<div style="background:#fff;color:#14202b;max-width:520px;width:100%;max-height:85vh;overflow:auto;border-radius:10px;padding:14px">
+  <h3 style="margin:0 0 4px">${A.si+1}. kalıp · ${cm(A.p.a)}×${cm(A.p.b)} cm (${A.p.lb||'#'+A.p.n})</h3>
+  <button class="btn btn-primary" style="display:block;width:100%;margin:12px 0;font-size:16px;padding:10px" onclick="rotApply(${gi}, '${pid}')">🔄 Bu Parçayı Döndür (90°)</button>
+  <p class="mu" style="margin:0 0 8px;color:#555">${esc(oo.m)} — bu yere hangi ölçü konsun? (Yalnızca bu alana sığanlar listelenir)</p>
+  ${html}
+  <button class="btn btn-danger" style="display:block;width:100%;margin:8px 0 4px" onclick="swApply(${outIdx})">➖ Bu parçayı kalıptan çıkar (kalıp dışı)</button>
+  <button class="btn" style="display:block;width:100%" onclick="closeSw()">Kapat</button></div>`;
   m.onclick=e=>{if(e.target===m)closeSw()};document.body.appendChild(m);
 };
 window.autoPlan=()=>{
@@ -738,8 +784,8 @@ function renderGlass(){
   let pend=0;if(lk||man){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat((g.bad||[]).map(p=>p.id),(g.ex||[]).map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
   const pw=pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için ${lk?'yönetici kilidi açıp ':''}"Planı yenile" ile otomatik plana dönüp tekrar kilitleyin.</span>`:'';
   out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+pw
-    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya dokunup/tıklayarak yerine başka ölçü koyabilir veya parmakla/fareyle sürükleyebilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
-    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya dokunup/tıklayarak yerine başka ölçü koyabilir, parçaları fare/parmak ile sürükleyebilir veya listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
+    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya dokunup/tıklayarak döndürebilir/değiştirebilir, veya parmakla/fareyle sürükleyebilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
+    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya dokunup/tıklayarak döndürebilir/değiştirebilir, fare/parmak ile sürükleyebilir veya listeden hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
   const fw=fewList(gPlan),fwn=fw.reduce((u,f)=>u+f.ps.length,0),fsig=fw.map(f=>f.t+f.tur+f.ps.map(p=>p.pid).join()).join('|');
   const cb=document.querySelector('.tab-btn[data-t="cam"]');if(cb)cb.textContent='🪟 Cam Kesim'+(fwn?' ⚠️'+fwn:'');
   if(fwn){out+=`<div class="box" style="border:2px solid #D98E2B;background:rgba(217,142,43,.12)"><b>⚠️ Az parça kalan kalıplar var (${fwn} parça)</b><p class="mu" style="margin:6px 0">Bu parçalar için yeni levha açmadan önce <b>daha önce kesilmiş / depodaki artık camlardan bulunuz</b>.</p>`+
