@@ -258,6 +258,7 @@ const numR=(id,i,k,v,w,lst)=>`<input type="number" step="0.5" list="${lst}" styl
 const ALL=(id,k,lab,o)=>`<label>${lab}<select onchange="gall('${id}','${k}',this.value);this.value=''"><option value="">— tümüne uygula —</option>${o.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('')}</select></label>`;
 const ALLN=(id,k,lab,lst)=>`<label>${lab}<input type="number" step="0.5" list="${lst}" placeholder="yaz/seç → tümüne" onchange="gall('${id}','${k}',this.value);this.value=''"></label>`;
 window.dtog=(id,el)=>{const d=dget(id);if(d){d.open=!el.parentNode.open;saveDR()}};
+window.dclose=id=>{const d=dget(id);if(d){d.open=false;saveDR();renderG()}};
 window.dset=(id,k,v)=>{const d=dget(id);if(d){d[k]=v;saveDR()}};
 window.gq=(id,i,k,v)=>{const d=dget(id);if(d&&d.rows[i]){d.rows[i][k]=v;saveDR()}};
 window.gset=(id,i,k,v)=>{const d=dget(id);if(!d||!d.rows[i])return;d.rows[i][k]=['k','t','c'].includes(k)?+v:v;d.rows[i].ok=true;saveDR();renderG()};
@@ -286,7 +287,7 @@ function draftHTML(d){
   <p class="mu">Ölçüler cm. ${d.edit?'Bu fiş zaten siparişlerde; kaydedince değişiklikler siparişlere işlenir. Ölçü/cam değişen satırların "kesildi" işareti sıfırlanır.':'Kırmızı satırlar okunamayan / emin olunmayan yerler; fişle karşılaştırın.'} Adet = çift cam adedi. Adet kutusunda Enter yeni satır açar.</p>
   <div class="tb"><table><tr><th>No</th><th>Genişlik (En)</th><th>Yükseklik (Boy)</th><th>Adet</th><th>Tip</th><th>Cam</th><th>Çıta</th><th>Tür</th><th></th></tr>`+
   d.rows.map((r,i)=>`<tr style="${r.ok?'':'background:rgba(217,108,108,.18)'}"><td class="mu">${r.oid?'#'+(r.no||''):'+'}</td><td>${inpR(d.id,i,'en',r.en,80)}</td><td>${inpR(d.id,i,'boy',r.boy,80)}</td><td>${inpR(d.id,i,'adet',r.adet,60,`onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();gadd('${d.id}')}"`)}</td><td>${selR(d.id,i,'k',[[2,'Çift'],[1,'Tek']],r.k)}</td><td>${numR(d.id,i,'t',r.t,60,'dl-t')}</td><td>${r.k==2?numR(d.id,i,'c',r.c,60,'dl-c'):'-'}</td><td>${selR(d.id,i,'tur',[['Düz','Düz'],['Buzlu','Buzlu']],r.tur)}</td><td><button class="btn btn-danger btn-sm" onclick="gdel('${d.id}',${i})">✕</button></td></tr>`).join('')+
-  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">${d.edit?'💾 Değişiklikleri kaydet':'✅ Bu fişi siparişlere ekle'}</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">${d.edit?'✖ İptal':'🗑 Bu fişi sil'}</button></div></div></details>`;
+  `</table></div><div class="fr" style="margin-top:8px"><button class="btn btn-sm" onclick="gadd('${d.id}')">➕ Satır ekle</button><button class="btn btn-success" onclick="gok('${d.id}')">${d.edit?'💾 Değişiklikleri kaydet':'✅ Bu fişi siparişlere ekle'}</button><button class="btn btn-danger btn-sm" onclick="gdrop('${d.id}')">${d.edit?'✖ İptal':'🗑 Bu fişi sil'}</button><button class="btn btn-sm" style="margin-left:auto;background:#e2e8f0;color:#14202b;border:1px solid #cbd5e1" onclick="dclose('${d.id}')">⬆️ Daralt / Kapat</button></div></div></details>`;
   return h;
 }
 function renderG(){
@@ -490,13 +491,12 @@ function seqList(g){return g.sheets.flatMap((s,si)=>cutOrder(s.p).map((p,i)=>({.
 window.cdone=pid=>{CP.done[pid]?delete CP.done[pid]:CP.done[pid]=1;saveCP();render()};
 window.cskip=pid=>{if(role!=='admin'||CP.locked)return;CP.skip[pid]?delete CP.skip[pid]:CP.skip[pid]=1;saveCP();render()};
 
-/* ---------- Manuel Sürükle & Bırak (Dataset Tabanlı Güvenli Yapı) ---------- */
+/* ---------- Manuel Sürükle & Bırak ve Tıklama (Mobil Destekli) ---------- */
 let draggingPiece = null;
 let dragContext = null;
 
 function startDrag(e) {
   if (CP.locked) return;
-  e.preventDefault();
   const gEl = e.target.closest('g[data-pid]');
   if (!gEl) return;
   const gi = parseInt(gEl.dataset.gi, 10);
@@ -513,31 +513,56 @@ function startDrag(e) {
   const svg = e.target.closest('svg');
   if (!svg) return;
 
+  const isTouch = e.type === 'touchstart';
+  const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+  const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+
   draggingPiece = p;
   dragContext = {
     gi, si, pid,
     p, sheet, svg,
     origX: p.x,
     origY: p.y,
-    startX: e.clientX,
-    startY: e.clientY
+    startX: clientX,
+    startY: clientY,
+    isMoved: false,
+    isTouch
   };
 
-  window.addEventListener('mousemove', onDrag);
-  window.addEventListener('mouseup', endDrag);
+  if (isTouch) {
+    window.addEventListener('touchmove', onDrag, {passive: false});
+    window.addEventListener('touchend', endDrag);
+  } else {
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('mouseup', endDrag);
+  }
 }
 
 function onDrag(e) {
   if (!draggingPiece || !dragContext) return;
-  e.preventDefault();
+  const isTouch = dragContext.isTouch;
+  if (isTouch && e.type !== 'touchmove') return;
+
+  const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+  const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+
   const { p, sheet, svg, origX, origY, startX, startY } = dragContext;
 
   const rect = svg.getBoundingClientRect();
   const scaleX = sheet.SW / rect.width;
   const scaleY = sheet.SH / rect.height;
 
-  const dx = (e.clientX - startX) * scaleX;
-  const dy = (e.clientY - startY) * scaleY;
+  const dx = (clientX - startX) * scaleX;
+  const dy = (clientY - startY) * scaleY;
+
+  // 5 pikselden fazla hareket ederse sürükleniyor kabul et, tıklamayı iptal et
+  if (Math.abs(clientX - startX) > 5 || Math.abs(clientY - startY) > 5) {
+    dragContext.isMoved = true;
+  }
+
+  if (dragContext.isMoved) {
+    if (e.cancelable) e.preventDefault(); // Sürüklenirken ekranın kaymasını engelle
+  }
 
   let newX = Math.round(origX + dx);
   let newY = Math.round(origY + dy);
@@ -563,28 +588,43 @@ function onDrag(e) {
 }
 
 function endDrag(e) {
-  if (!draggingPiece) return;
-  window.removeEventListener('mousemove', onDrag);
-  window.removeEventListener('mouseup', endDrag);
+  if (!draggingPiece || !dragContext) return;
+  const ctx = dragContext;
+  
+  if (ctx.isTouch) {
+    window.removeEventListener('touchmove', onDrag);
+    window.removeEventListener('touchend', endDrag);
+  } else {
+    window.removeEventListener('mousemove', onDrag);
+    window.removeEventListener('mouseup', endDrag);
+  }
+
+  draggingPiece = null;
+  dragContext = null;
+
+  // Sürüklenmediyse demek ki sadece tıklandı/dokunuldu. Menüyü aç.
+  if (!ctx.isMoved) {
+    if (role === 'admin') swp(ctx.gi, ctx.pid);
+    else toast('Parçayı değiştirmek için yönetici girişi gerekli');
+    return;
+  }
 
   if (!CP.man) {
     CP.man = JSON.stringify(stripPlan(gPlan));
   } else {
     try {
       const manPlan = JSON.parse(CP.man);
-      if (manPlan[dragContext.gi] && manPlan[dragContext.gi].sheets[dragContext.si]) {
-        const targetP = manPlan[dragContext.gi].sheets[dragContext.si].p.find(item => item.pid === dragContext.pid);
+      if (manPlan[ctx.gi] && manPlan[ctx.gi].sheets[ctx.si]) {
+        const targetP = manPlan[ctx.gi].sheets[ctx.si].p.find(item => item.pid === ctx.pid);
         if (targetP) {
-          targetP.x = dragContext.p.x;
-          targetP.y = dragContext.p.y;
+          targetP.x = ctx.p.x;
+          targetP.y = ctx.p.y;
         }
         CP.man = JSON.stringify(manPlan);
       }
     } catch(err) {}
   }
   saveCP();
-  draggingPiece = null;
-  dragContext = null;
   renderGlass();
 }
 
@@ -698,8 +738,8 @@ function renderGlass(){
   let pend=0;if(lk||man){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat((g.bad||[]).map(p=>p.id),(g.ex||[]).map(p=>p.id))));pend=list().filter(o=>!o.camDone&&!ins.has(o.id)).length}
   const pw=pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için ${lk?'yönetici kilidi açıp ':''}"Planı yenile" ile otomatik plana dönüp tekrar kilitleyin.</span>`:'';
   out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+pw
-    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya tıklayarak yerine başka ölçü koyabilir veya fareyle sürükleyebilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
-    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya tıklayıp yerine başka ölçü koyabilir, parçaları fareyle sürükleyebilir veya listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
+    :man?'✏️ <b>Elle düzenlenmiş plan.</b> Parçaya dokunup/tıklayarak yerine başka ölçü koyabilir veya parmakla/fareyle sürükleyebilirsiniz. Bitince 🔒 ile kilitleyin.'+pw
+    :'🔓 <b>Plan açık (otomatik).</b> '+(role==='admin'?'Bir parçaya dokunup/tıklayarak yerine başka ölçü koyabilir, parçaları fare/parmak ile sürükleyebilir veya listeden parça dahil/hariç edebilirsiniz. ':'')+'Kesime başlamadan önce 🔒 ile kilitleyin.'}</div>`;
   const fw=fewList(gPlan),fwn=fw.reduce((u,f)=>u+f.ps.length,0),fsig=fw.map(f=>f.t+f.tur+f.ps.map(p=>p.pid).join()).join('|');
   const cb=document.querySelector('.tab-btn[data-t="cam"]');if(cb)cb.textContent='🪟 Cam Kesim'+(fwn?' ⚠️'+fwn:'');
   if(fwn){out+=`<div class="box" style="border:2px solid #D98E2B;background:rgba(217,142,43,.12)"><b>⚠️ Az parça kalan kalıplar var (${fwn} parça)</b><p class="mu" style="margin:6px 0">Bu parçalar için yeni levha açmadan önce <b>daha önce kesilmiş / depodaki artık camlardan bulunuz</b>.</p>`+
@@ -718,9 +758,7 @@ function renderGlass(){
         const dn=CP.done[p.pid],e=ext(p);
         let interactionAttr = '';
         if(!CP.locked){
-          interactionAttr = `data-gi="${gi}" data-si="${i}" data-pid="${p.pid}" onmousedown="startDrag(event)" style="cursor:grab"`;
-        } else if(canEd){
-          interactionAttr = `data-gi="${gi}" data-pid="${p.pid}" onclick="swpClick(this)" style="cursor:pointer"`;
+          interactionAttr = `data-gi="${gi}" data-si="${i}" data-pid="${p.pid}" onmousedown="startDrag(event)" ontouchstart="startDrag(event)" style="cursor:pointer"`;
         }
         return `<g data-pid="${p.pid}" ${interactionAttr}>` +
           ((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'') +
