@@ -658,7 +658,7 @@ window.swpClick = function(el) {
 };
 
 window.rotApply = (gi, pid) => {
-  if (Date.now() - modalOpenedAt < 300) return;
+  if (Date.now() - modalOpenedAt < 250) return;
   if (role === 'guest') return toast('Giriş yapmanız gerekli');
   const g = gPlan[gi]; if(!g) return;
   let targetP = null, targetS = null;
@@ -735,7 +735,7 @@ window.addPToFree = (gi, si, fri) => {
 };
 
 window.placePInFree = (gi, si, fri, pid) => {
-  if (Date.now() - modalOpenedAt < 300) return;
+  if (Date.now() - modalOpenedAt < 250) return;
   if (role === 'guest') return toast('Giriş yapmanız gerekli');
   if (CP.locked) return toast('Plan kilitli');
   const plan = JSON.parse(JSON.stringify(gPlan));
@@ -870,7 +870,7 @@ function editPlan(gi,pidA,pidB){
 let SWR=[];
 window.closeSw=()=>{const m=$('swm');if(m)m.remove()};
 window.swApply=i=>{
-  if(Date.now() - modalOpenedAt < 300) return;
+  if(Date.now() - modalOpenedAt < 250) return;
   const r=SWR[i];if(!r)return;CP.man=JSON.stringify(stripPlan(r.plan));saveCP();closeSw();render();toast('Değişiklik uygulandı')
 };
 window.swp=(gi,pid)=>{
