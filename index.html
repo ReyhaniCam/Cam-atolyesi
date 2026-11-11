@@ -870,7 +870,8 @@ function editPlan(gi,pidA,pidB){
 let SWR=[];
 window.closeSw=()=>{const m=$('swm');if(m)m.remove()};
 window.swApply=i=>{
-  const r=SWR[i];if(!r)return;CP.man=JSON.stringify(stripPlan(r.plan));saveCP();closeSw();render();toast('Değişiklik uygulandı')
+  const plan=SWR[i];if(!plan)return toast('Bu değişiklik uygulanamadı');
+  CP.man=JSON.stringify(stripPlan(plan));saveCP();closeSw();render();toast('Değişiklik uygulandı')
 };
 
 function bindModalEvents() {
