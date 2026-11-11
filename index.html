@@ -86,7 +86,7 @@ const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTi
 
 /* ---------- Giriş ---------- */
 const ADMIN_HASH="50e65b1455800c98b480cec56db88524fabd630ddd992df1a58faf5a6edd2430",STAFF_HASH="2b084c9efd9150fb848e4efb0b5f03f455470f68b153814944e14a6204ec5b9a",DEVICE_AUTH_HASH="12a7d32afcd5140951fe6ea7b2c8ed7a9c2b196333190f28f899aaf85699c7e6",DEVKEY='reyhani_device_authorized_v1';
-let role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
+let GK='',role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
 const devOK=()=>{try{return localStorage.getItem(DEVKEY)==='true'}catch(e){return false}};
 async function checkDeviceLink(){
@@ -109,6 +109,7 @@ function applyRole(){
   $('gate').classList.toggle('hide',role!=='guest');
   const b=$('role');b.textContent=role==='admin'?'Yönetici':role==='staff'?'Çalışan':'Ziyaretçi Modu';b.className='admin-badge role-'+role;
   $('auth-btn').textContent=role==='guest'?'Giriş Yap':'Çıkış';
+  if(role==='admin'&&db&&!GK){const lk=localStorage.getItem('gemini_api_key');if(lk){GK=lk;db.child('secrets/gemini_key').set(lk)}}
   const act=document.querySelector('.tab-btn.active');if(!act||act.classList.contains('hide'))document.querySelector('.tab-btn[data-t="siparis"]').click();
   render();
 }
@@ -124,6 +125,8 @@ function initStore(){
     db.child('stock').on('value',s=>{stock=s.val()||{};render()});
     db.child('cplan').on('value',s=>{CP={locked:false,skip:{},seq:[],done:{},snap:null,...(s.val()||{})};CP.skip=CP.skip||{};CP.done=CP.done||{};CP.seq=Array.isArray(CP.seq)?CP.seq:Object.values(CP.seq||{});render()});
     db.child('montaj').on('value',s=>{montaj=s.val()||{};render()});
+    db.child('secrets/gemini_key').on('value',s=>{GK=s.val()||'';
+      if(!GK&&role==='admin'){const lk=localStorage.getItem('gemini_api_key');if(lk)db.child('secrets/gemini_key').set(lk)}});
     db.child('settings').on('value',s=>{settings={...DEF,...(s.val()||{})};fillSettings();render()});
     firebase.database().ref('.info/connected').on('value',s=>setSync(s.val()?'☁️ Canlı':'⚠️ Bağlantı yok',s.val()));
   }).catch(e=>{setSync('⚠️ Giriş hatası',false);console.error(e)});
@@ -216,7 +219,13 @@ function renderStock(){
 
 /* ---------- Fiş okuma (Gemini) ---------- */
 let gRows=[];
-window.gkey=()=>{const k=prompt('Google API anahtarını yapıştırın:',localStorage.getItem('gemini_api_key')||'');if(k)localStorage.setItem('gemini_api_key',k.trim())};
+const getKey=()=>role==='guest'?'':(GK||localStorage.getItem('gemini_api_key')||'');
+window.gkey=()=>{
+  if(role==='guest')return toast('Giriş yapmanız gerekli');
+  if(role!=='admin'){toast(getKey()?'API anahtarı yönetici tarafından tanımlı ✓':'API anahtarını yönetici girmeli');return}
+  const k=prompt('Google API anahtarını yapıştırın (tüm cihazlarda ortak kullanılır):',getKey());
+  if(k&&k.trim()){const v=k.trim();localStorage.setItem('gemini_api_key',v);GK=v;db&&db.child('secrets/gemini_key').set(v);toast('API anahtarı kaydedildi (tüm cihazlar)')}
+};
 function fileB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>res(String(r.result).split(',')[1]);r.readAsDataURL(f)})}
 function shrink(f){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const i=new Image();i.onerror=rej;i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85).split(',')[1])};i.src=r.result};r.readAsDataURL(f)})}
 const GP=`Bu, el yazısıyla yazılmış bir cam sipariş fişi. Ölçüler SANTİMETRE (ondalık virgül veya nokta olabilir). Başlıklar cam yapısını verir: "4+12+4" = iki kat 4 mm cam + 12 mm çıta = ÇİFT CAM (kat:2, cam:4, cita:12). "tek" yazan gruplar TEK CAM (kat:1, cita:0). "buzlu" yazan gruplar tur:"Buzlu", diğerleri tur:"Düz". Satırlar "sıra no - en x boy = adet" biçimindedir. SADECE geçerli bir JSON nesnesi ver: {"musteri":null,"siparis_no":null,"tarih":null,"notlar":null,"gruplar":[{"grup":"başlık","kat":2,"cam":4,"cita":12,"tur":"Düz","parcalar":[{"no":"1","en":190.2,"boy":75.3,"adet":2,"emin":true}]}]}. musteri, siparis_no ve notlar fişte yazıyorsa metin olarak yaz, yoksa null; tarih YYYY-MM-DD biçiminde, yoksa null. Sayıları cm olarak ve nokta ondalıklı yaz. Adet yazılmamışsa adet:null. Okuyamadığın, silinmiş/üstü çizili veya emin olmadığın satırlarda ve başlığı belirsiz gruplarda emin:false yaz. Ölçü uydurma.`;
@@ -224,8 +233,8 @@ let DR=[];try{DR=JSON.parse(localStorage.getItem('fis_drafts_v1')||'[]').filter(
 const saveDR=()=>{try{localStorage.setItem('fis_drafts_v1',JSON.stringify(DR))}catch(e){}};
 const dget=id=>DR.find(d=>d.id===id);
 async function readFis(f){
-  if(!f)return;let key=localStorage.getItem('gemini_api_key');
-  if(!key){gkey();key=localStorage.getItem('gemini_api_key');if(!key)return}
+  if(!f)return;let key=getKey();
+  if(!key){gkey();key=getKey();if(!key)return}
   const d={id:'d'+rid(),fl:f.name||'Fiş',st:'reading',msg:'',m:'',rq:'',a:'',no:'',d:'',n:'',rows:[],open:false};
   DR.unshift(d);renderG();
   try{
