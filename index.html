@@ -1042,18 +1042,18 @@ function lowHead(g,gi,s,i){
 
 /* ---------- Tam ekran kalıp düzenleyici ---------- */
 let FS=null,fsSel=null,fsZoom=1,fsDrag=null;
-window.openFull=(gi,si)=>{if(role==='guest')return toast('Giriş yapmanız gerekli');FS={gi,si};fsSel=null;fsZoom=innerWidth<760?2:1;drawFull();document.body.style.overflow='hidden'};
+window.openFull=(gi,si)=>{if(role==='guest')return toast('Giriş yapmanız gerekli');FS={gi,si};fsSel=null;fsZoom=1;drawFull();document.body.style.overflow='hidden'};
 window.closeFull=()=>{FS=null;fsDrag=null;const m=$('fsv');if(m)m.remove();document.body.style.overflow=''};
 function refreshFull(){if(!FS)return;const g=gPlan[FS.gi];if(!g||!g.sheets[FS.si])return closeFull();drawFull()}
 function drawFull(){
-  const g=gPlan[FS.gi],s=g.sheets[FS.si],ed=!CP.locked,sel=s.p.find(p=>p.pid===fsSel),fs=s.SW/40;
+  const g=gPlan[FS.gi],s=g.sheets[FS.si],ed=!CP.locked,sel=s.p.find(p=>p.pid===fsSel),fs=s.SW/32;
   let m=$('fsv'),keep=m?$('fsbox').scrollLeft:0,keepY=m?$('fsbox').scrollTop:0;
   if(!m){m=document.createElement('div');m.id='fsv';document.body.appendChild(m)}
   const svg=`<svg id="fsvg" viewBox="0 0 ${s.SW} ${s.SH}" style="width:${fsZoom*100}%;touch-action:none;display:block;background:#e2e8f0" onpointerdown="fsBg(event)"><rect width="${s.SW}" height="${s.SH}" fill="#f8fafc" stroke="#0f172a" stroke-width="6"/>`+
     (ed?(s.fr||[]).filter(r=>r.w>=100&&r.h>=100).map(r=>`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="rgba(34,197,94,.10)" stroke="#16a34a" stroke-dasharray="14 10" stroke-width="3" pointer-events="none"/><text x="${r.x+r.w/2}" y="${r.y+r.h/2}" font-size="${Math.min(fs,r.w/6,r.h/3)}" text-anchor="middle" fill="#15803d" pointer-events="none">➕ ${cm(r.w)}×${cm(r.h)}</text>`).join(''):'')+
     s.p.map(p=>{const dn=CP.done[p.pid],on=p.pid===fsSel;
       return `<g data-pid="${p.pid}" onpointerdown="fsDown(event,'${p.pid}')" style="cursor:grab"><rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${on?'#FDE68A':dn?'#BFE8C8':'#BFE3F2'}" stroke="${on?'#D97706':dn?'#2E8B57':'#0B6E99'}" stroke-width="${on?9:4}"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b" pointer-events="none">${p.lb||'#'+p.n}</text><text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b" pointer-events="none">${cm(p.a)}×${cm(p.b)}</text></g>`}).join('')+'</svg>';
-  const info=sel?`<b>${sel.lb||'#'+sel.n}</b> · ${cm(sel.a)}×${cm(sel.b)} cm · ${esc((orders[sel.id]||{}).m)}`:(ed?'Parçaya dokunup sürükleyin · yeşil boşluğa dokunarak parça koyun · boş yerden kaydırın':'Plan kilitli — parçaya dokunup "Kesildi" işaretleyin');
+  const info=sel?`<b>${sel.lb||'#'+sel.n}</b> · ${cm(sel.a)}×${cm(sel.b)} cm · ${esc((orders[sel.id]||{}).m)}`:(ed?'Parçayı sürükleyin: boşa bırakırsanız taşınır, başka parçanın üstüne bırakırsanız yer değiştirir · yeşil boşluğa dokunarak parça koyun':'Plan kilitli — parçaya dokunup "Kesildi" işaretleyin');
   m.innerHTML=`<div class="fstop"><button class="btn" onclick="closeFull()">✕ Kapat</button><div class="fst"><b>${FS.si+1}. kalıp ${cm(s.SW)}×${cm(s.SH)} cm</b><br><small>verim %${effOf(s).toFixed(0)} · ${s.p.length} parça</small></div>
     <button class="btn" onclick="fsZ(-.5)">−</button><button class="btn" onclick="fsZ(.5)">＋</button></div>
     <div id="fsbox">${svg}</div>
@@ -1088,9 +1088,10 @@ function fsMove(e){
   let nx=d.ox+(e.clientX-d.sx)*sc,ny=d.oy+(e.clientY-d.sy)*sc;
   nx=Math.max(0,Math.min(nx,s.SW-p.a));ny=Math.max(0,Math.min(ny,s.SH-p.b));
   const q=fsSnap(s,p,nx,ny,14*sc,k);nx=Math.round(q.x);ny=Math.round(q.y);
-  const hit=(x,y)=>s.p.some(o=>o.pid!==p.pid&&x<o.x+o.a+k&&x+p.a>o.x-k&&y<o.y+o.b+k&&y+p.b>o.y-k);
-  const c=[[nx,ny],[nx,p.y],[p.x,ny]].find(t=>!hit(t[0],t[1]));
-  if(c){p.x=c[0];p.y=c[1];updatePieceDOM({svg:d.svg,pid:p.pid,p,sheet:s})}
+  const hit=s.p.some(o=>o.pid!==p.pid&&nx<o.x+o.a+k&&nx+p.a>o.x-k&&ny<o.y+o.b+k&&ny+p.b>o.y-k);
+  p.x=nx;p.y=ny;d.valid=!hit;d.lx=(e.clientX-d.svg.getBoundingClientRect().left)*sc;d.ly=(e.clientY-d.svg.getBoundingClientRect().top)*sc;
+  updatePieceDOM({svg:d.svg,pid:p.pid,p,sheet:s});
+  const rc=d.svg.querySelector(`g[data-pid="${p.pid}"] rect`);if(rc){rc.setAttribute('stroke',hit?'#dc2626':'#16a34a');rc.setAttribute('stroke-width',10);rc.setAttribute('fill',hit?'#fecaca':'#bbf7d0')}
 }
 function fsUp(e){
   removeEventListener('pointermove',fsMove);removeEventListener('pointerup',fsUp);removeEventListener('pointercancel',fsUp);
@@ -1100,7 +1101,15 @@ function fsUp(e){
     if(fi&&!CP.locked)addPToFree(FS.gi,FS.si,fi.i);else{fsSel=null;drawFull()}}return}
   fsSel=d.pid;
   if(!d.moved||CP.locked){fsDrag=null;drawFull();return}
-  fsDrag=null;CP.man=JSON.stringify(stripPlan(gPlan));saveCP();drawFull();
+  fsDrag=null;const p=d.p,s=d.s;
+  if(d.valid!==false){CP.man=JSON.stringify(stripPlan(gPlan));saveCP();drawFull();return}
+  p.x=d.ox;p.y=d.oy;
+  const B=s.p.find(o=>o.pid!==p.pid&&d.lx>=o.x&&d.lx<=o.x+o.a&&d.ly>=o.y&&d.ly<=o.y+o.b);
+  if(B){const r=editPlan(FS.gi,p.pid,B.pid);
+    if(r&&(r.out!=='bad'||confirm('Yer değiştirince bir parça kalıba sığmayacak. Yine de yapılsın mı?'))){CP.man=JSON.stringify(stripPlan(r.plan));fsSel=null;saveCP();render();toast(r.out==='swap'?'Parçalar yer değiştirdi':'Değişiklik uygulandı');return}
+    toast('Bu parça oraya sığmıyor')}
+  else toast('Buraya sığmıyor, parça eski yerine döndü');
+  drawFull();
 }
 function renderGlass(){
   const cf=$('cam-fis'),bar=$('cam-bar');
