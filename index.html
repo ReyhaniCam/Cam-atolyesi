@@ -37,6 +37,16 @@ input,select{min-height:48px;font-size:16px}
 #swm .btn-modal-act,#swm .btn-modal-close{min-height:56px;font-size:15px!important}
 }
 </style>
+<style>
+.lowsv{display:none}.lowc{border:2px solid #D98E2B;background:rgba(217,142,43,.14);border-radius:12px;padding:12px;margin:8px 0}.lowc p{margin:8px 0}
+.fsbtn{width:100%;margin:6px 0}
+#fsv{position:fixed;inset:0;z-index:9000;background:#0f172a;display:flex;flex-direction:column;color:#fff}
+.fstop{display:flex;align-items:center;gap:8px;padding:10px 10px 10px;padding-top:calc(10px + env(safe-area-inset-top))}.fst{flex:1;text-align:center;line-height:1.3}
+#fsbox{flex:1;overflow:auto;background:#1e293b;overscroll-behavior:contain}
+.fsbot{padding:10px 10px calc(12px + env(safe-area-inset-bottom));background:#0f172a;border-top:1px solid #334155}
+.fsinfo{text-align:center;font-size:14px;margin-bottom:8px;min-height:20px}.fsact{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.fsact .btn-success{grid-column:1/-1}
+#fsv .btn{min-height:52px}.toast{z-index:10050!important}
+</style>
 </head><body>
 <div id="splash-screen"><div class="splash-content"><img src="logo.png" alt="Reyhani Yapı" class="splash-logo"><div class="loader"></div><p>Yükleniyor...</p></div></div>
 <div class="app">
@@ -62,6 +72,7 @@ input,select{min-height:48px;font-size:16px}
   <div class="box fr" id="cam-bar">
     <button class="btn" id="lk">🔓 Açık</button>
     <button class="btn btn-primary" id="rc">🔄 Planı yenile</button>
+    <button class="btn" id="alt">🔀 Farklı plan</button>
     <button class="btn btn-success" id="dc">✅ Bu planı kesildi işaretle</button>
     <button class="btn" id="xc">📥 Excel</button>
     <button class="btn" id="lb">🏷️ Etiket</button>
@@ -102,20 +113,21 @@ input,select{min-height:48px;font-size:16px}
 <label>Çıta boyu (mm)<input id="s-bl" type="number"></label>
 <label>Çıta ölçü düşümü (mm)<input id="s-ded" type="number"></label></div>
 <div class="fr"><label>Artık sayılacak en küçük kenar (cm)<input id="s-rem" type="number"></label>
-<label>"Az parça kaldı" uyarısı (en fazla kaç parça)<input id="s-few" type="number"></label></div>
+<label>"Az parça kaldı" uyarısı (en fazla kaç parça)<input id="s-few" type="number"></label>
+<label>Düşük verim uyarısı (% altı kalıp çizilmez)<input id="s-low" type="number"></label></div>
 <p class="mu">Çıta çerçevesi = 2×(En−düşüm) + 2×(Boy−düşüm). Kalıp (levha) ölçüleri artık <b>Kalıplar</b> sekmesinden girilir.</p>
 <button class="btn btn-primary" id="ssave">💾 Kaydet</button></div></div>
 </div><datalist id="dl-t"><option value="4"><option value="5"><option value="6"><option value="8"><option value="10"></datalist><datalist id="dl-c"><option value="8"><option value="10"><option value="12"><option value="14"><option value="16"><option value="18"><option value="20"></datalist><datalist id="dl-m"></datalist><datalist id="dl-r"></datalist><datalist id="dl-a"></datalist><div id="lab"></div><div class="toast" id="toast"></div>
 <script>
 const $=i=>document.getElementById(i);
 const esc=s=>String(s != null ? s : '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const DEF={kerf:3,bl:6000,ded:12,rem:30,few:2};
+const DEF={kerf:3,bl:6000,ded:12,rem:30,few:2,low:35};
 let orders={},stock={},settings={...DEF},db=null,gPlan=[],tPlan=[];
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)};
 
 /* ---------- Giriş ---------- */
 const ADMIN_HASH="50e65b1455800c98b480cec56db88524fabd630ddd992df1a58faf5a6edd2430",STAFF_HASH="2b084c9efd9150fb848e4efb0b5f03f455470f68b153814944e14a6204ec5b9a",DEVICE_AUTH_HASH="12a7d32afcd5140951fe6ea7b2c8ed7a9c2b196333190f28f899aaf85699c7e6",DEVKEY='reyhani_device_authorized_v1';
-let CF='',cpRef=null,OGC=[],GK='',role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
+let ALT=0,CF='',cpRef=null,OGC=[],GK='',role='guest',montaj={},CP={locked:false,skip:{},seq:[],done:{},snap:null};
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
 const devOK=()=>{try{return localStorage.getItem(DEVKEY)==='true'}catch(e){return false}};
 async function checkDeviceLink(){
@@ -174,8 +186,8 @@ function loadCP(){
   cpRef=db.child('cplan2/'+fkey(CF));
   cpRef.on('value',s=>{CP={locked:false,skip:{},seq:[],done:{},snap:null,...(s.val()||{})};CP.skip=CP.skip||{};CP.done=CP.done||{};CP.seq=Array.isArray(CP.seq)?CP.seq:Object.values(CP.seq||{});render()});
 }
-window.openCamFis=i=>{if(!OGC[i])return;CF=OGC[i];loadCP();window.scrollTo(0,0)};
-window.backCam=()=>{CF='';loadCP();window.scrollTo(0,0)};
+window.openCamFis=i=>{if(!OGC[i])return;ALT=0;CF=OGC[i];loadCP();window.scrollTo(0,0)};
+window.backCam=()=>{ALT=0;CF='';loadCP();window.scrollTo(0,0)};
 function saveCP(){db&&CF&&db.child('cplan2/'+fkey(CF)).set({locked:!!CP.locked,skip:CP.skip||{},seq:CP.seq||[],done:CP.done||{},snap:CP.snap||null,man:CP.man||null})}
 function resetCP(){CP={locked:false,skip:{},seq:[],done:{},snap:null,man:null};saveCP()}
 function saveMontaj(m){db&&db.child('montaj/'+m.id).set(m)}
@@ -442,9 +454,9 @@ function planAttempt(pcs,av0,k,att){
 const better=(x,y)=>!y||x.rem.length<y.rem.length||(x.rem.length===y.rem.length&&(x.waste<y.waste-1||(Math.abs(x.waste-y.waste)<=1&&(x.sheets.length<y.sheets.length||(x.sheets.length===y.sheets.length&&x.fresh<y.fresh)))));
 const PC=new Map();
 function planSet(pcs,av,k){
-  const key=JSON.stringify([pcs.map(p=>[p.w,p.h,p.pid,p.lb]),av.map(s=>[s.id,s.w,s.h,s.left,!!s.artik]),k,minRem()]);
+  const key=JSON.stringify([pcs.map(p=>[p.w,p.h,p.pid,p.lb]),av.map(s=>[s.id,s.w,s.h,s.left,!!s.artik]),k,minRem(),ALT]);
   if(PC.has(key))return PC.get(key);
-  let best=null;for(let att=0;att<8;att++){const r=planAttempt(pcs,av,k,att);if(better(r,best))best=r}
+  let best=null;if(ALT>0)best=planAttempt(pcs,av,k,(ALT-1)%8);else for(let att=0;att<8;att++){const r=planAttempt(pcs,av,k,att);if(better(r,best))best=r}
   if(PC.size>30)PC.clear();PC.set(key,best);return best;
 }
 function pack(ps,SW,SH,k){
@@ -1010,6 +1022,86 @@ function camFisList(){
     const os=G[k],o0=os[0],pcs=os.reduce((t,o)=>t+o.q*K(o),0),nos=os.map(o=>o.no||0),a=Math.min(...nos),b=Math.max(...nos);
     return `<button class="fcard" onclick="openCamFis(${i})"><span class="fc-no">#${a}${b>a?'–'+b:''}</span><span class="fc-main"><b>${esc(o0.m)||'İsimsiz fiş'}</b><small>${esc(o0.a)}${o0.fl?' · '+esc(o0.fl):''}</small></span><span class="fc-pc">${pcs}<small>cam</small></span></button>`}).join(''):'<p class="mu">Kesilecek fiş yok.</p>')+'</div>';
 }
+
+/* ---------- Düşük verim uyarısı ---------- */
+const SHOWLOW={};
+const effOf=s=>s.SW*s.SH?100*s.p.reduce((x,p)=>x+p.a*p.b,0)/(s.SW*s.SH):100;
+const isLow=(s,gi,i)=>!s.artik&&s.p.length&&effOf(s)<(+settings.low||0)&&!SHOWLOW[gi+'_'+i];
+window.showLow=(gi,i)=>{SHOWLOW[gi+'_'+i]=1;renderGlass()};
+function lowHead(g,gi,s,i){
+  const btn=`<button class="btn btn-primary fsbtn" onclick="openFull(${gi},${i})">⛶ Tam ekranda düzenle</button>`;
+  if(!isLow(s,gi,i))return btn;
+  const sum=s.p.reduce((x,p)=>x+p.a*p.b,0),area=s.SW*s.SH;
+  const alt=(g.stk||[]).filter(c=>c.q>0&&c.id!==s.stockId&&(c.artik||c.w*c.h<area)&&c.w*c.h>=sum*1.05&&s.p.every(p=>fitsIn(p,c.w,c.h))).sort((a,b)=>a.w*a.h-b.w*b.h)[0];
+  return `<div class="lowc"><b>⚠️ Çok fire: %${effOf(s).toFixed(0)} verim · ${((area-sum)/1e6).toFixed(2)} m² fire</b>
+    <p>Bu ${s.p.length} parçayı ${cm(s.SW)}×${cm(s.SH)} cm kalıptan kesmeyin:</p>
+    <div>${s.p.map(p=>`<span class="pill">${p.lb||'#'+p.n} · ${cm(p.a)}×${cm(p.b)}</span>`).join(' ')}</div>
+    <p>💡 <b>Öneri:</b> ${alt?`depodaki <b>${cm(alt.w)}×${cm(alt.h)} cm</b> ${alt.artik?'artık ':''}camı kullanın.`:'depodaki artık / parça camlardan kesin ya da bu parçaları başka bir fişle birlikte planlayın.'} Kesim sırası aşağıdaki <b>Kesim listesinde</b>.</p>
+    <button class="btn btn-sm" onclick="showLow(${gi},${i})">Yine de kalıbı göster</button> ${btn}</div>`;
+}
+
+/* ---------- Tam ekran kalıp düzenleyici ---------- */
+let FS=null,fsSel=null,fsZoom=1,fsDrag=null;
+window.openFull=(gi,si)=>{if(role==='guest')return toast('Giriş yapmanız gerekli');FS={gi,si};fsSel=null;fsZoom=innerWidth<760?2:1;drawFull();document.body.style.overflow='hidden'};
+window.closeFull=()=>{FS=null;fsDrag=null;const m=$('fsv');if(m)m.remove();document.body.style.overflow=''};
+function refreshFull(){if(!FS)return;const g=gPlan[FS.gi];if(!g||!g.sheets[FS.si])return closeFull();drawFull()}
+function drawFull(){
+  const g=gPlan[FS.gi],s=g.sheets[FS.si],ed=!CP.locked,sel=s.p.find(p=>p.pid===fsSel),fs=s.SW/40;
+  let m=$('fsv'),keep=m?$('fsbox').scrollLeft:0,keepY=m?$('fsbox').scrollTop:0;
+  if(!m){m=document.createElement('div');m.id='fsv';document.body.appendChild(m)}
+  const svg=`<svg id="fsvg" viewBox="0 0 ${s.SW} ${s.SH}" style="width:${fsZoom*100}%;touch-action:none;display:block;background:#e2e8f0" onpointerdown="fsBg(event)"><rect width="${s.SW}" height="${s.SH}" fill="#f8fafc" stroke="#0f172a" stroke-width="6"/>`+
+    (ed?(s.fr||[]).filter(r=>r.w>=100&&r.h>=100).map(r=>`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="rgba(34,197,94,.10)" stroke="#16a34a" stroke-dasharray="14 10" stroke-width="3" pointer-events="none"/><text x="${r.x+r.w/2}" y="${r.y+r.h/2}" font-size="${Math.min(fs,r.w/6,r.h/3)}" text-anchor="middle" fill="#15803d" pointer-events="none">➕ ${cm(r.w)}×${cm(r.h)}</text>`).join(''):'')+
+    s.p.map(p=>{const dn=CP.done[p.pid],on=p.pid===fsSel;
+      return `<g data-pid="${p.pid}" onpointerdown="fsDown(event,'${p.pid}')" style="cursor:grab"><rect x="${p.x}" y="${p.y}" width="${p.a}" height="${p.b}" fill="${on?'#FDE68A':dn?'#BFE8C8':'#BFE3F2'}" stroke="${on?'#D97706':dn?'#2E8B57':'#0B6E99'}" stroke-width="${on?9:4}"/><text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b" pointer-events="none">${p.lb||'#'+p.n}</text><text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b" pointer-events="none">${cm(p.a)}×${cm(p.b)}</text></g>`}).join('')+'</svg>';
+  const info=sel?`<b>${sel.lb||'#'+sel.n}</b> · ${cm(sel.a)}×${cm(sel.b)} cm · ${esc((orders[sel.id]||{}).m)}`:(ed?'Parçaya dokunup sürükleyin · yeşil boşluğa dokunarak parça koyun · boş yerden kaydırın':'Plan kilitli — parçaya dokunup "Kesildi" işaretleyin');
+  m.innerHTML=`<div class="fstop"><button class="btn" onclick="closeFull()">✕ Kapat</button><div class="fst"><b>${FS.si+1}. kalıp ${cm(s.SW)}×${cm(s.SH)} cm</b><br><small>verim %${effOf(s).toFixed(0)} · ${s.p.length} parça</small></div>
+    <button class="btn" onclick="fsZ(-.5)">−</button><button class="btn" onclick="fsZ(.5)">＋</button></div>
+    <div id="fsbox">${svg}</div>
+    <div class="fsbot"><div class="fsinfo">${info}</div>${sel?`<div class="fsact">`+(ed&&!CP.done[sel.pid]?`<button class="btn btn-primary" onclick="rotApply(${FS.gi},'${sel.pid}')">🔄 Döndür</button><button class="btn" onclick="swp(${FS.gi},'${sel.pid}')">🔁 Değiştir</button><button class="btn btn-danger" onclick="fsOut()">➖ Çıkar</button>`:'')+`<button class="btn btn-success" onclick="cdone('${sel.pid}')">${CP.done[sel.pid]?'↩ Kesildi kaldır':'✅ Kesildi'}</button></div>`:''}</div>`;
+  const b=$('fsbox');b.scrollLeft=keep;b.scrollTop=keepY;
+}
+window.fsZ=d=>{fsZoom=Math.max(1,Math.min(5,fsZoom+d));drawFull()};
+window.fsOut=()=>{const r=editPlan(FS.gi,fsSel,null);if(!r)return;CP.man=JSON.stringify(stripPlan(r.plan));fsSel=null;saveCP();render();toast('Parça kalıptan çıkarıldı')};
+const fsPt=(e)=>{const svg=$('fsvg'),r=svg.getBoundingClientRect(),s=gPlan[FS.gi].sheets[FS.si],sc=s.SW/r.width;return{x:(e.clientX-r.left)*sc,y:(e.clientY-r.top)*sc,sc,s}};
+function fsSnap(s,p,x,y,thr,k){
+  const xs=[0,s.SW-p.a],ys=[0,s.SH-p.b];
+  s.p.forEach(o=>{if(o.pid===p.pid)return;xs.push(o.x+o.a+k,o.x-p.a-k,o.x,o.x+o.a-p.a);ys.push(o.y+o.b+k,o.y-p.b-k,o.y,o.y+o.b-p.b)});
+  const nr=(v,c)=>c.reduce((b,t)=>Math.abs(t-v)<Math.abs(b-v)?t:b,v);
+  const sx=nr(x,xs),sy=nr(y,ys);return{x:Math.abs(sx-x)<=thr?sx:x,y:Math.abs(sy-y)<=thr?sy:y};
+}
+window.fsDown=(e,pid)=>{
+  e.stopPropagation();e.preventDefault();const {s}=fsPt(e),p=s.p.find(x=>x.pid===pid);if(!p)return;
+  fsDrag={kind:'p',pid,p,s,sx:e.clientX,sy:e.clientY,ox:p.x,oy:p.y,moved:false,svg:$('fsvg')};
+  addEventListener('pointermove',fsMove,{passive:false});addEventListener('pointerup',fsUp);addEventListener('pointercancel',fsUp);
+};
+window.fsBg=e=>{
+  const b=$('fsbox');fsDrag={kind:'bg',sx:e.clientX,sy:e.clientY,sl:b.scrollLeft,st:b.scrollTop,moved:false,x:e.clientX,y:e.clientY};
+  addEventListener('pointermove',fsMove,{passive:false});addEventListener('pointerup',fsUp);addEventListener('pointercancel',fsUp);
+};
+function fsMove(e){
+  const d=fsDrag;if(!d)return;
+  if(Math.abs(e.clientX-d.sx)>6||Math.abs(e.clientY-d.sy)>6)d.moved=true;
+  if(!d.moved)return;e.preventDefault();
+  if(d.kind==='bg'){const b=$('fsbox');b.scrollLeft=d.sl-(e.clientX-d.sx);b.scrollTop=d.st-(e.clientY-d.sy);return}
+  if(CP.locked)return;
+  const r=d.svg.getBoundingClientRect(),sc=d.s.SW/r.width,k=+settings.kerf||0,p=d.p,s=d.s;
+  let nx=d.ox+(e.clientX-d.sx)*sc,ny=d.oy+(e.clientY-d.sy)*sc;
+  nx=Math.max(0,Math.min(nx,s.SW-p.a));ny=Math.max(0,Math.min(ny,s.SH-p.b));
+  const q=fsSnap(s,p,nx,ny,14*sc,k);nx=Math.round(q.x);ny=Math.round(q.y);
+  const hit=(x,y)=>s.p.some(o=>o.pid!==p.pid&&x<o.x+o.a+k&&x+p.a>o.x-k&&y<o.y+o.b+k&&y+p.b>o.y-k);
+  const c=[[nx,ny],[nx,p.y],[p.x,ny]].find(t=>!hit(t[0],t[1]));
+  if(c){p.x=c[0];p.y=c[1];updatePieceDOM({svg:d.svg,pid:p.pid,p,sheet:s})}
+}
+function fsUp(e){
+  removeEventListener('pointermove',fsMove);removeEventListener('pointerup',fsUp);removeEventListener('pointercancel',fsUp);
+  const d=fsDrag;if(!d)return;
+  if(d.kind==='bg'){fsDrag=null;if(!d.moved&&FS){const r=$('fsvg').getBoundingClientRect(),s=gPlan[FS.gi].sheets[FS.si],sc=s.SW/r.width,x=(e.clientX-r.left)*sc,y=(e.clientY-r.top)*sc;
+    const fi=(s.fr||[]).map((f,i)=>({f,i})).filter(t=>t.f.w>=100&&t.f.h>=100&&x>=t.f.x&&x<=t.f.x+t.f.w&&y>=t.f.y&&y<=t.f.y+t.f.h).sort((a,b)=>a.f.w*a.f.h-b.f.w*b.f.h)[0];
+    if(fi&&!CP.locked)addPToFree(FS.gi,FS.si,fi.i);else{fsSel=null;drawFull()}}return}
+  fsSel=d.pid;
+  if(!d.moved||CP.locked){fsDrag=null;drawFull();return}
+  fsDrag=null;CP.man=JSON.stringify(stripPlan(gPlan));saveCP();drawFull();
+}
 function renderGlass(){
   const cf=$('cam-fis'),bar=$('cam-bar');
   if(!CF){gPlan=[];bar.style.display='none';cf.innerHTML=camFisList();$('o-cam').innerHTML='';
@@ -1019,7 +1111,7 @@ function renderGlass(){
    cf.innerHTML=`<div class="box fisbar"><button class="btn" onclick="backCam()">← Fişler</button><div><b>${esc(o0.m)||'Fiş'}</b><br><span class="mu">${esc(o0.a)}${o0.fl?' · '+esc(o0.fl):''}</span></div></div>`}
   const lk=CP.locked&&CP.snap,man=!lk&&CP.man,canEd=role!=='guest'&&!CP.locked;
   gPlan=lk?JSON.parse(CP.snap):man?JSON.parse(CP.man):planGlass();let out='';
-  $('lk').textContent=lk?'🔒 Kilitli':'🔓 Açık';
+  $('lk').textContent=lk?'🔒 Kilitli':'🔓 Açık';$('alt').textContent='🔀 Farklı plan ('+(ALT||'en iyi')+')';
   let pend=0;if(lk||man){const ins=new Set(gPlan.flatMap(g=>g.sheets.flatMap(s=>s.p.map(p=>p.id)).concat((g.bad||[]).map(p=>p.id),(g.ex||[]).map(p=>p.id))));pend=list().filter(o=>!o.camDone&&gkeyOf(o)===CF&&!ins.has(o.id)).length}
   const pw=pend?` <span class="err">${pend} bekleyen sipariş bu planda yok; yeni plan için ${lk?'kilidi açıp ':''}"Planı yenile" ile otomatik plana dönün.</span>`:'';
   out+=`<div class="box">${lk?'🔒 <b>Plan kilitli.</b> Parçayı kesince listedeki "Kesildi" kutusunu işaretleyin.'+pw
@@ -1039,12 +1131,12 @@ function renderGlass(){
     if(!lk&&!man&&g.all)out+=cmpTable(g);
     g.sheets.forEach((s,i)=>{const area=s.SW*s.SH,u=s.p.reduce((x,p)=>x+p.a*p.b,0),fs=s.SW/55;
       out+=`<p><b>${i+1}. kalıp: ${cm(s.SW)}×${cm(s.SH)} cm${s.artik?' (artık)':''}</b> — ${s.p.length} parça · verim %${(100*u/area).toFixed(1)} · fire ${((area-u)/1e6).toFixed(2)} m²${s.rem&&s.rem.length?'<br><span class="ok">Kalan artık: '+s.rem.map(r=>cm(r[0])+'×'+cm(r[1])+' cm').join(' · ')+'</span>':''}</p>
-      <svg class="pl" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
+      ${lowHead(g,gi,s,i)}<svg class="pl${isLow(s,gi,i)?' lowsv':''}" onclick="openFull(${gi},${i})" viewBox="0 0 ${s.SW} ${s.SH}"><rect width="${s.SW}" height="${s.SH}" fill="none" stroke="currentColor" stroke-width="4"/>`+
       s.p.map(p=>{
         const dn=CP.done[p.pid],e=ext(p);
         let interactionAttr = '';
         if(!CP.locked){
-          interactionAttr = `data-gi="${gi}" data-si="${i}" data-pid="${p.pid}" onmousedown="startDrag(event)" ontouchstart="startDrag(event)" style="cursor:pointer"`;
+          interactionAttr = `data-gi="${gi}" data-si="${i}" data-pid="${p.pid}"`;
         }
         return `<g data-pid="${p.pid}" ${interactionAttr}>` +
           ((e.w>p.a||e.h>p.b)?`<rect x="${p.x}" y="${p.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#999" stroke-dasharray="14 10" stroke-width="2"/>`:'') +
@@ -1052,7 +1144,7 @@ function renderGlass(){
           `<text x="${p.x+p.a/2}" y="${p.y+p.b/2-fs*.1}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#14202b">${sm[p.pid]}. ${p.lb||'#'+p.n}</text>` +
           `<text x="${p.x+p.a/2}" y="${p.y+p.b/2+fs*1.1}" font-size="${fs*.85}" text-anchor="middle" fill="#14202b">${cm(p.a)}×${cm(p.b)}</text></g>`;
       }).join('') +
-      (!CP.locked && role !== 'guest' ? (s.fr || []).map((r, fri) => {
+      (false ? (s.fr || []).map((r, fri) => {
         if (r.w < 100 || r.h < 100) return '';
         const fsr = Math.min(s.SW / 60, r.w / 4, r.h / 4);
         return `<g onclick="addPToFree(${gi}, ${i}, ${fri})" style="cursor:pointer">
@@ -1063,6 +1155,7 @@ function renderGlass(){
       '</svg>'});
     out+=listTable(g,gi,sl)+'</div>'});
   $('o-cam').innerHTML=out||'<div class="box mu">Kesilecek cam yok.</div>';
+  if(!fsDrag)refreshFull();
 }
 /* ---------- Çıta kesim motoru (sadece çift cam) ---------- */
 function planCita(){
@@ -1096,7 +1189,11 @@ $('dc').onclick=()=>{
     rems.forEach(r=>saveStock({id:'s'+rid(),w:r.w,h:r.h,t:r.t,tur:r.tur,q:1,artik:true}));CF='';loadCP()}});
 };
 $('dt').onclick=()=>markDone('citaDone',new Set(tPlan.flatMap(g=>g.bars.flatMap(b=>b.p.map(p=>p.id)))));
-$('rc').onclick=autoPlan;$('rt').onclick=()=>{render();toast('Plan yenilendi')};
+$('rc').onclick=()=>{ALT=0;autoPlan()};
+$('alt').onclick=()=>{if(CP.locked)return toast('Plan kilitli');
+  if(CP.man&&!confirm('Elle yaptığınız değişiklikler silinip farklı bir otomatik plan denenecek. Devam edilsin mi?'))return;
+  CP.man=null;saveCP();ALT=(ALT+1)%9;render();toast(ALT?'Alternatif plan '+ALT+'/8':'En iyi plan')};
+$('rt').onclick=()=>{render();toast('Plan yenilendi')};
 const who=id=>{const o=orders[id]||{};return[o.m||'',o.a||'']};
 function xl(rows,name){const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Plan');XLSX.writeFile(wb,name+'.xlsx')}
 $('xc').onclick=()=>{const r=[['Cam','Tür','Kalıp no','Kesim sırası','Kalıp (cm)','Sipariş','Müşteri','Apartman','En (cm)','Boy (cm)']];
@@ -1105,8 +1202,8 @@ $('xt').onclick=()=>{const r=[['Çıta mm','Çıta no','Parça (cm)','Sipariş',
   tPlan.forEach(g=>g.bars.forEach((b,i)=>b.p.forEach(p=>r.push([g.c,i+1,p.v/10,'#'+p.n,...who(p.id),b.fire/10]))));xl(r,'cita-kesim')};
 
 /* ---------- Ayarlar ---------- */
-function fillSettings(){$('s-kerf').value=settings.kerf;$('s-bl').value=settings.bl;$('s-ded').value=settings.ded;$('s-rem').value=settings.rem;$('s-few').value=settings.few}
-$('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf').value,bl:+$('s-bl').value,ded:+$('s-ded').value,rem:+$('s-rem').value,few:+$('s-few').value});toast('Kaydedildi')};
+function fillSettings(){$('s-kerf').value=settings.kerf;$('s-bl').value=settings.bl;$('s-ded').value=settings.ded;$('s-rem').value=settings.rem;$('s-few').value=settings.few;$('s-low').value=settings.low}
+$('ssave').onclick=()=>{if(role!=='admin')return;saveSettings({kerf:+$('s-kerf').value,bl:+$('s-bl').value,ded:+$('s-ded').value,rem:+$('s-rem').value,few:+$('s-few').value,low:+$('s-low').value});toast('Kaydedildi')};
 
 /* ---------- Montaj ---------- */
 const ST={bekliyor:'🕓 Bekliyor',yolda:'🚚 Yolda',tamam:'✅ Tamamlandı'},NEXT={bekliyor:'yolda',yolda:'tamam',tamam:'bekliyor'};
